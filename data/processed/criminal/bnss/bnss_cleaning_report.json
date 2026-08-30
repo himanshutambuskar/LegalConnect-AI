@@ -1,0 +1,11 @@
+{
+    "source_file": "data/raw/criminal/bnss/bnss_sections.json",
+    "output_file": "data/processed/criminal/bnss/bnss_cleaned.json",
+    "records_before": 531,
+    "records_after": 531,
+    "empty_content": 0,
+    "duplicate_ids": 0,
+    "duplicate_sections": 0,
+    "flagged_records": [],
+    "status": "passed"
+}

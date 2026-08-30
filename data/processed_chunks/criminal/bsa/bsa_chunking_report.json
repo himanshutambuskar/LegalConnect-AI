@@ -1,0 +1,14 @@
+{
+    "source_file": "data/processed/criminal/bsa/bsa_cleaned.json",
+    "output_file": "data/processed_chunks/criminal/bsa/bsa_chunks.json",
+    "records_before": 170,
+    "chunks_created": 197,
+    "sections_split": 17,
+    "average_chunk_size": 745.1,
+    "min_chunk_size": 66,
+    "max_chunk_size": 1787,
+    "empty_chunks": 0,
+    "duplicate_chunk_ids": 0,
+    "flagged_chunks": [],
+    "status": "passed"
+}

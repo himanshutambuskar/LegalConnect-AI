@@ -1,0 +1,14 @@
+{
+    "source_file": "data/processed/criminal/bns/bns_cleaned.json",
+    "output_file": "data/processed_chunks/criminal/bns/bns_chunks.json",
+    "records_before": 358,
+    "chunks_created": 433,
+    "sections_split": 46,
+    "average_chunk_size": 822.5,
+    "min_chunk_size": 75,
+    "max_chunk_size": 1796,
+    "empty_chunks": 0,
+    "duplicate_chunk_ids": 0,
+    "flagged_chunks": [],
+    "status": "passed"
+}

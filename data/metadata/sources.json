@@ -1,0 +1,178 @@
+[
+    {
+        "id": "bns-2023",
+        "name": "Bharatiya Nyaya Sanhita, 2023",
+        "category": "Criminal Laws",
+        "subcategory": "Criminal Law",
+        "source": "India Code / Legislative Department / BPRD",
+        "url": "https://bprd.nic.in/uploads/pdf/1706692028_eeccb6a2701f4c13ac9b.pdf",
+        "document_type": "Act",
+        "language": "English",
+        "status": "completed"
+    },
+    {
+        "id": "bnss-2023",
+        "name": "Bharatiya Nagarik Suraksha Sanhita, 2023",
+        "category": "Criminal Laws",
+        "subcategory": "Criminal Procedure",
+        "source": "India Code / Legislative Department",
+        "url": "https://www.mha.gov.in/sites/default/files/250883_english_01042024.pdf",
+        "document_type": "Act",
+        "language": "English",
+        "status": "pending"
+    },
+    {
+        "id": "bsa-2023",
+        "name": "Bharatiya Sakshya Adhiniyam, 2023",
+        "category": "Criminal Laws",
+        "subcategory": "Evidence Law",
+        "source": "India Code / Legislative Department",
+        "url": "https://www.mha.gov.in/sites/default/files/250882_english_01042024.pdf",
+        "document_type": "Act",
+        "language": "English",
+        "status": "pending"
+    },
+    {
+        "id": "constitution-india",
+        "name": "The Constitution of India",
+        "category": "Constitution",
+        "subcategory": "Constitutional Law",
+        "source": "Legislative Department",
+        "url": "https://legislative.gov.in/constitution-of-india",
+        "document_type": "Constitution",
+        "language": "English",
+        "status": "pending"
+    },
+    {
+        "id": "cpa-2019",
+        "name": "Consumer Protection Act, 2019",
+        "category": "Consumer Protection",
+        "subcategory": "Consumer Law",
+        "source": "India Code / NCDRC",
+        "url": "https://www.indiacode.nic.in/handle/123456789/15256",
+        "document_type": "Act",
+        "language": "English",
+        "status": "pending"
+    },
+    {
+        "id": "it-act-2000",
+        "name": "Information Technology Act, 2000",
+        "category": "Cyber Crime",
+        "subcategory": "Cyber Law",
+        "source": "MeitY / India Code",
+        "url": "https://www.meity.gov.in/content/information-technology-act-2000",
+        "document_type": "Act",
+        "language": "English",
+        "status": "pending"
+    },
+    {
+        "id": "pwdva-2005",
+        "name": "Protection of Women from Domestic Violence Act, 2005",
+        "category": "Women's Rights",
+        "subcategory": "Women Protection",
+        "source": "India Code",
+        "url": "https://www.indiacode.nic.in/handle/123456789/2021",
+        "document_type": "Act",
+        "language": "English",
+        "status": "pending"
+    },
+    {
+        "id": "posh-act-2013",
+        "name": "Sexual Harassment of Women at Workplace Act, 2013",
+        "category": "Women's Rights",
+        "subcategory": "Workplace Safety",
+        "source": "India Code",
+        "url": "https://www.indiacode.nic.in/handle/123456789/2104",
+        "document_type": "Act",
+        "language": "English",
+        "status": "pending"
+    },
+    {
+        "id": "code-social-security-2020",
+        "name": "Code on Social Security, 2020",
+        "category": "Labour Laws",
+        "subcategory": "Labour Welfare",
+        "source": "Ministry of Labour and Employment",
+        "url": "https://labour.gov.in/sites/default/files/The_Code_on_Social_Security_2020.pdf",
+        "document_type": "Act",
+        "language": "English",
+        "status": "pending"
+    },
+    {
+        "id": "hindu-marriage-act-1955",
+        "name": "Hindu Marriage Act, 1955",
+        "category": "Family Laws",
+        "subcategory": "Personal Law",
+        "source": "India Code",
+        "url": "https://www.indiacode.nic.in/handle/123456789/1560",
+        "document_type": "Act",
+        "language": "English",
+        "status": "pending"
+    },
+    {
+        "id": "motor-vehicles-act-1988",
+        "name": "Motor Vehicles Act, 1988",
+        "category": "Traffic Laws",
+        "subcategory": "Road & Traffic Law",
+        "source": "MoRTH / India Code",
+        "url": "https://morth.nic.in/motor-vehicles-act-1988",
+        "document_type": "Act",
+        "language": "English",
+        "status": "pending"
+    },
+    {
+        "id": "transfer-property-act-1882",
+        "name": "Transfer of Property Act, 1882",
+        "category": "Property Laws",
+        "subcategory": "Property Rights",
+        "source": "India Code",
+        "url": "https://www.indiacode.nic.in/handle/123456789/2338",
+        "document_type": "Act",
+        "language": "English",
+        "status": "pending"
+    },
+    {
+        "id": "rti-act-2005",
+        "name": "Right to Information Act, 2005",
+        "category": "RTI",
+        "subcategory": "Public Information",
+        "source": "RTI Portal / India Code",
+        "url": "https://rti.gov.in/",
+        "document_type": "Act",
+        "language": "English",
+        "status": "pending"
+    },
+    {
+        "id": "environment-protection-act-1986",
+        "name": "Environment (Protection) Act, 1986",
+        "category": "Environmental Laws",
+        "subcategory": "Environmental Protection",
+        "source": "CPCB / India Code",
+        "url": "https://cpcb.nic.in/env-protection-act-1986/",
+        "document_type": "Act",
+        "language": "English",
+        "status": "pending"
+    },
+    {
+        "id": "lsa-act-1987",
+        "name": "Legal Services Authorities Act, 1987",
+        "category": "Legal Aid",
+        "subcategory": "Access to Justice",
+        "source": "NALSA / India Code",
+        "url": "https://nalsa.gov.in/act-rules",
+        "document_type": "Act",
+        "language": "English",
+        "status": "pending"
+    },
+    {
+        "id": "myscheme-portal",
+        "name": "National Government Welfare Schemes",
+        "category": "Government Schemes",
+        "subcategory": "Social Welfare",
+        "source": "myScheme Portal",
+        "url": "https://www.myscheme.gov.in/",
+        "document_type": "Government Scheme",
+        "language": "English",
+        "status": "pending"
+    }
+]

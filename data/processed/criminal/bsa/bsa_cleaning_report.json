@@ -1,0 +1,11 @@
+{
+    "source_file": "data/raw/criminal/bsa/bsa_sections.json",
+    "output_file": "data/processed/criminal/bsa/bsa_cleaned.json",
+    "records_before": 170,
+    "records_after": 170,
+    "empty_content": 0,
+    "duplicate_ids": 0,
+    "duplicate_sections": 0,
+    "flagged_records": [],
+    "status": "passed"
+}
