@@ -1,0 +1,462 @@
+{
+    "source_file": "data/raw/cyber/it_act_sections.json",
+    "output_file": "data/processed/cyber/it_act_cleaned.json",
+    "records_before": 156,
+    "records_after": 156,
+    "empty_content": 0,
+    "duplicate_ids": 0,
+    "duplicate_sections": 49,
+    "flagged_records": [
+        {
+            "index": 8,
+            "id": "IT-2000-SECTION-47",
+            "section": "Section 47",
+            "flags": [
+                "Suspiciously short content (18 chars)"
+            ]
+        },
+        {
+            "index": 9,
+            "id": "IT-2000-SECTION-64",
+            "section": "Section 64",
+            "flags": [
+                "Suspiciously short content (8 chars)"
+            ]
+        },
+        {
+            "index": 10,
+            "id": "IT-2000-SECTION-67A",
+            "section": "Section 67A",
+            "flags": [
+                "Suspiciously short content (16 chars)"
+            ]
+        },
+        {
+            "index": 13,
+            "id": "IT-2000-SECTION-69A",
+            "section": "Section 69A",
+            "flags": [
+                "Suspiciously short content (18 chars)"
+            ]
+        },
+        {
+            "index": 17,
+            "id": "IT-2000-SECTION-79A",
+            "section": "Section 79A",
+            "flags": [
+                "Suspiciously short content (13 chars)"
+            ]
+        },
+        {
+            "index": 20,
+            "id": "IT-2000-SECTION-2-PART-2",
+            "section": "Section 2",
+            "flags": [
+                "Duplicate section_number '2'"
+            ]
+        },
+        {
+            "index": 21,
+            "id": "IT-2000-SECTION-1-PART-2",
+            "section": "Section 1",
+            "flags": [
+                "Duplicate section_number '1'"
+            ]
+        },
+        {
+            "index": 22,
+            "id": "IT-2000-SECTION-2-PART-3",
+            "section": "Section 2",
+            "flags": [
+                "Duplicate section_number '2'"
+            ]
+        },
+        {
+            "index": 25,
+            "id": "IT-2000-SECTION-3-PART-2",
+            "section": "Section 3",
+            "flags": [
+                "Duplicate section_number '3'"
+            ]
+        },
+        {
+            "index": 26,
+            "id": "IT-2000-SECTION-3-PART-3",
+            "section": "Section 3",
+            "flags": [
+                "Duplicate section_number '3'"
+            ]
+        },
+        {
+            "index": 28,
+            "id": "IT-2000-SECTION-5-PART-2",
+            "section": "Section 5",
+            "flags": [
+                "Duplicate section_number '5'"
+            ]
+        },
+        {
+            "index": 30,
+            "id": "IT-2000-SECTION-1-PART-3",
+            "section": "Section 1",
+            "flags": [
+                "Duplicate section_number '1'"
+            ]
+        },
+        {
+            "index": 34,
+            "id": "IT-2000-SECTION-2-PART-4",
+            "section": "Section 2",
+            "flags": [
+                "Duplicate section_number '2'"
+            ]
+        },
+        {
+            "index": 38,
+            "id": "IT-2000-SECTION-13-PART-2",
+            "section": "Section 13",
+            "flags": [
+                "Duplicate section_number '13'"
+            ]
+        },
+        {
+            "index": 39,
+            "id": "IT-2000-SECTION-3-PART-4",
+            "section": "Section 3",
+            "flags": [
+                "Duplicate section_number '3'"
+            ]
+        },
+        {
+            "index": 41,
+            "id": "IT-2000-SECTION-16-PART-2",
+            "section": "Section 16",
+            "flags": [
+                "Duplicate section_number '16'"
+            ]
+        },
+        {
+            "index": 43,
+            "id": "IT-2000-SECTION-3-PART-5",
+            "section": "Section 3",
+            "flags": [
+                "Duplicate section_number '3'"
+            ]
+        },
+        {
+            "index": 52,
+            "id": "IT-2000-SECTION-2-PART-5",
+            "section": "Section 2",
+            "flags": [
+                "Duplicate section_number '2'"
+            ]
+        },
+        {
+            "index": 59,
+            "id": "IT-2000-SECTION-2-PART-6",
+            "section": "Section 2",
+            "flags": [
+                "Duplicate section_number '2'"
+            ]
+        },
+        {
+            "index": 62,
+            "id": "IT-2000-SECTION-34-PART-2",
+            "section": "Section 34",
+            "flags": [
+                "Duplicate section_number '34'"
+            ]
+        },
+        {
+            "index": 65,
+            "id": "IT-2000-SECTION-5-PART-3",
+            "section": "Section 5",
+            "flags": [
+                "Duplicate section_number '5'"
+            ]
+        },
+        {
+            "index": 68,
+            "id": "IT-2000-SECTION-39-PART-2",
+            "section": "Section 39",
+            "flags": [
+                "Duplicate section_number '39'"
+            ]
+        },
+        {
+            "index": 69,
+            "id": "IT-2000-SECTION-1-PART-4",
+            "section": "Section 1",
+            "flags": [
+                "Duplicate section_number '1'"
+            ]
+        },
+        {
+            "index": 72,
+            "id": "IT-2000-SECTION-42-PART-2",
+            "section": "Section 42",
+            "flags": [
+                "Duplicate section_number '42'"
+            ]
+        },
+        {
+            "index": 74,
+            "id": "IT-2000-SECTION-4-PART-2",
+            "section": "Section 4",
+            "flags": [
+                "Suspiciously short content (19 chars)",
+                "Duplicate section_number '4'"
+            ]
+        },
+        {
+            "index": 75,
+            "id": "IT-2000-SECTION-7-PART-2",
+            "section": "Section 7",
+            "flags": [
+                "Duplicate section_number '7'"
+            ]
+        },
+        {
+            "index": 76,
+            "id": "IT-2000-SECTION-3-PART-6",
+            "section": "Section 3",
+            "flags": [
+                "Duplicate section_number '3'"
+            ]
+        },
+        {
+            "index": 80,
+            "id": "IT-2000-SECTION-9-PART-2",
+            "section": "Section 9",
+            "flags": [
+                "Duplicate section_number '9'"
+            ]
+        },
+        {
+            "index": 81,
+            "id": "IT-2000-SECTION-47-PART-2",
+            "section": "Section 47",
+            "flags": [
+                "Duplicate section_number '47'"
+            ]
+        },
+        {
+            "index": 88,
+            "id": "IT-2000-SECTION-5-PART-4",
+            "section": "Section 5",
+            "flags": [
+                "Duplicate section_number '5'"
+            ]
+        },
+        {
+            "index": 89,
+            "id": "IT-2000-SECTION-53",
+            "section": "Section 53",
+            "flags": [
+                "Suspiciously short content (6 chars)"
+            ]
+        },
+        {
+            "index": 91,
+            "id": "IT-2000-SECTION-56",
+            "section": "Section 56",
+            "flags": [
+                "Suspiciously short content (19 chars)"
+            ]
+        },
+        {
+            "index": 94,
+            "id": "IT-2000-SECTION-2-PART-7",
+            "section": "Section 2",
+            "flags": [
+                "Duplicate section_number '2'"
+            ]
+        },
+        {
+            "index": 100,
+            "id": "IT-2000-SECTION-64-PART-2",
+            "section": "Section 64",
+            "flags": [
+                "Duplicate section_number '64'"
+            ]
+        },
+        {
+            "index": 102,
+            "id": "IT-2000-SECTION-5-PART-5",
+            "section": "Section 5",
+            "flags": [
+                "Duplicate section_number '5'"
+            ]
+        },
+        {
+            "index": 108,
+            "id": "IT-2000-SECTION-2-PART-8",
+            "section": "Section 2",
+            "flags": [
+                "Suspiciously short content (14 chars)",
+                "Duplicate section_number '2'"
+            ]
+        },
+        {
+            "index": 111,
+            "id": "IT-2000-SECTION-67A-PART-2",
+            "section": "Section 67A",
+            "flags": [
+                "Duplicate section_number '67A'"
+            ]
+        },
+        {
+            "index": 112,
+            "id": "IT-2000-SECTION-67B-PART-2",
+            "section": "Section 67B",
+            "flags": [
+                "Duplicate section_number '67B'"
+            ]
+        },
+        {
+            "index": 115,
+            "id": "IT-2000-SECTION-69A-PART-2",
+            "section": "Section 69A",
+            "flags": [
+                "Duplicate section_number '69A'"
+            ]
+        },
+        {
+            "index": 116,
+            "id": "IT-2000-SECTION-69B-PART-2",
+            "section": "Section 69B",
+            "flags": [
+                "Duplicate section_number '69B'"
+            ]
+        },
+        {
+            "index": 118,
+            "id": "IT-2000-SECTION-4-PART-3",
+            "section": "Section 4",
+            "flags": [
+                "Duplicate section_number '4'"
+            ]
+        },
+        {
+            "index": 122,
+            "id": "IT-2000-SECTION-5-PART-6",
+            "section": "Section 5",
+            "flags": [
+                "Duplicate section_number '5'"
+            ]
+        },
+        {
+            "index": 128,
+            "id": "IT-2000-SECTION-3-PART-7",
+            "section": "Section 3",
+            "flags": [
+                "Duplicate section_number '3'"
+            ]
+        },
+        {
+            "index": 130,
+            "id": "IT-2000-SECTION-78-PART-2",
+            "section": "Section 78",
+            "flags": [
+                "Duplicate section_number '78'"
+            ]
+        },
+        {
+            "index": 131,
+            "id": "IT-2000-SECTION-79-PART-2",
+            "section": "Section 79",
+            "flags": [
+                "Duplicate section_number '79'"
+            ]
+        },
+        {
+            "index": 132,
+            "id": "IT-2000-SECTION-79A-PART-2",
+            "section": "Section 79A",
+            "flags": [
+                "Duplicate section_number '79A'"
+            ]
+        },
+        {
+            "index": 133,
+            "id": "IT-2000-SECTION-2-PART-9",
+            "section": "Section 2",
+            "flags": [
+                "Duplicate section_number '2'"
+            ]
+        },
+        {
+            "index": 138,
+            "id": "IT-2000-SECTION-4-PART-4",
+            "section": "Section 4",
+            "flags": [
+                "Duplicate section_number '4'"
+            ]
+        },
+        {
+            "index": 144,
+            "id": "IT-2000-SECTION-1-PART-5",
+            "section": "Section 1",
+            "flags": [
+                "Duplicate section_number '1'"
+            ]
+        },
+        {
+            "index": 145,
+            "id": "IT-2000-SECTION-2-PART-10",
+            "section": "Section 2",
+            "flags": [
+                "Duplicate section_number '2'"
+            ]
+        },
+        {
+            "index": 146,
+            "id": "IT-2000-SECTION-6-PART-2",
+            "section": "Section 6",
+            "flags": [
+                "Duplicate section_number '6'"
+            ]
+        },
+        {
+            "index": 148,
+            "id": "IT-2000-SECTION-5-PART-7",
+            "section": "Section 5",
+            "flags": [
+                "Duplicate section_number '5'"
+            ]
+        },
+        {
+            "index": 152,
+            "id": "IT-2000-SECTION-2-PART-11",
+            "section": "Section 2",
+            "flags": [
+                "Duplicate section_number '2'"
+            ]
+        },
+        {
+            "index": 153,
+            "id": "IT-2000-SECTION-4-PART-5",
+            "section": "Section 4",
+            "flags": [
+                "Duplicate section_number '4'"
+            ]
+        },
+        {
+            "index": 154,
+            "id": "IT-2000-SECTION-6-PART-3",
+            "section": "Section 6",
+            "flags": [
+                "Duplicate section_number '6'"
+            ]
+        },
+        {
+            "index": 155,
+            "id": "IT-2000-SECTION-2-PART-12",
+            "section": "Section 2",
+            "flags": [
+                "Duplicate section_number '2'"
+            ]
+        }
+    ],
+    "status": "passed"
+}

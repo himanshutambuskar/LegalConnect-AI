@@ -50,8 +50,24 @@ DEFAULT_PERSIST_DIR = "vectorstore/chroma"
 BNS_ACT = "Bharatiya Nyaya Sanhita, 2023"
 BNSS_ACT = "Bharatiya Nagarik Suraksha Sanhita, 2023"
 BSA_ACT = "Bharatiya Sakshya Adhiniyam, 2023"
+IT_ACT = "Information Technology Act, 2000"
 
 BENCHMARK_TEST_QUERIES = [
+    {
+        "query": "What is the punishment for identity theft under IT Act?",
+        "expected_section": "66C",
+        "expected_act": IT_ACT,
+    },
+    {
+        "query": "What does IT Act Section 43A say about compensation for failure to protect data?",
+        "expected_section": "43A",
+        "expected_act": IT_ACT,
+    },
+    {
+        "query": "What is the penalty for publishing obscene information in electronic form?",
+        "expected_section": "67",
+        "expected_act": IT_ACT,
+    },
     {
         "query": "What is the punishment for murder?",
         "expected_section": "103",

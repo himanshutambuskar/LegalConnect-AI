@@ -1,0 +1,14 @@
+{
+    "source_file": "data/processed/cyber/it_act_cleaned.json",
+    "output_file": "data/processed_chunks/cyber/it_act_chunks.json",
+    "records_before": 156,
+    "chunks_created": 169,
+    "sections_split": 12,
+    "average_chunk_size": 617.2,
+    "min_chunk_size": 6,
+    "max_chunk_size": 1792,
+    "empty_chunks": 0,
+    "duplicate_chunk_ids": 0,
+    "flagged_chunks": [],
+    "status": "passed"
+}
