@@ -52,6 +52,7 @@ BNSS_ACT = "Bharatiya Nagarik Suraksha Sanhita, 2023"
 BSA_ACT = "Bharatiya Sakshya Adhiniyam, 2023"
 IT_ACT = "Information Technology Act, 2000"
 CPA_ACT = "Consumer Protection Act, 2019"
+CSS_ACT = "Code on Social Security, 2020"
 
 BENCHMARK_TEST_QUERIES = [
     {
@@ -198,6 +199,26 @@ BENCHMARK_TEST_QUERIES = [
         "query": "What happens to the Consumer Protection Act 1986 under CPA section 107?",
         "expected_section": "107",
         "expected_act": CPA_ACT,
+    },
+    {
+        "query": "What does Code on Social Security section 53 say about maternity benefit?",
+        "expected_section": "53",
+        "expected_act": CSS_ACT,
+    },
+    {
+        "query": "What does Section 55 of Code on Social Security say about nursing breaks?",
+        "expected_section": "55",
+        "expected_act": CSS_ACT,
+    },
+    {
+        "query": "What is the Social Security Fund for unorganised workers under CSS section 109?",
+        "expected_section": "109",
+        "expected_act": CSS_ACT,
+    },
+    {
+        "query": "What does Section 164 of the Code on Social Security say about repeal and savings?",
+        "expected_section": "164",
+        "expected_act": CSS_ACT,
     }
 ]
 

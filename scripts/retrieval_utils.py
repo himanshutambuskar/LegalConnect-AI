@@ -24,7 +24,9 @@ LEGAL_ALIASES = {
     "bnss": "Bharatiya Nagarik Suraksha Sanhita",
     "bsa": "Bharatiya Sakshya Adhiniyam",
     "cpa": "Consumer Protection Act",
-    "it": "Information Technology Act"
+    "it": "Information Technology Act",
+    "css": "Code on Social Security",
+    "pwdva": "Protection of Women from Domestic Violence Act"
 }
 
 LEGAL_ACT_PATTERNS = {
@@ -32,7 +34,9 @@ LEGAL_ACT_PATTERNS = {
     "Bharatiya Nagarik Suraksha Sanhita, 2023": [r"\bbnss\b", r"\bbharatiya\s+nagarik\s+suraksha\s+sanhita\b"],
     "Bharatiya Sakshya Adhiniyam, 2023": [r"\bbsa\b", r"\bbharatiya\s+sakshya\s+adhiniyam\b"],
     "Information Technology Act, 2000": [r"\bit\s+act\b", r"\binformation\s+technology\s+act\b"],
-    "Consumer Protection Act, 2019": [r"\bcpa\b", r"\bconsumer\s+protection\s+act\b"]
+    "Consumer Protection Act, 2019": [r"\bcpa\b", r"\bconsumer\s+protection\s+act\b"],
+    "Code on Social Security, 2020": [r"\bcss\b", r"\bcode\s+on\s+social\s+security\b", r"\bsocial\s+security\s+code\b"],
+    "Protection of Women from Domestic Violence Act, 2005": [r"\bpwdva\b", r"\bdomestic\s+violence\s+act\b", r"\bprotection\s+of\s+women\s+from\s+domestic\s+violence\b"]
 }
 
 DEFAULT_CANDIDATE_POOL_SIZE = 20
@@ -46,7 +50,8 @@ TOPIC_STOP_WORDS = {
     "under", "does", "say", "about", "when", "may", "how", "are", "as",
     "with", "by", "from", "on", "at", "it", "this", "that", "be",
     "bharatiya", "nyaya", "nagarik", "suraksha", "sakshya", "adhiniyam", "sanhita",
-    "bns", "bnss", "bsa", "cpa", "consumer", "protection", "act"
+    "bns", "bnss", "bsa", "cpa", "consumer", "protection", "act", "css", "social", "security", "code",
+    "pwdva", "domestic", "women", "violence"
 }
 
 

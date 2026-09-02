@@ -71,10 +71,10 @@
         "category": "Women's Rights",
         "subcategory": "Women Protection",
         "source": "India Code",
-        "url": "https://www.indiacode.nic.in/handle/123456789/2021",
+        "url": "https://indiacode.gov.in/handle/123456789/2021",
         "document_type": "Act",
         "language": "English",
-        "status": "pending"
+        "status": "completed"
     },
     {
         "id": "posh-act-2013",
@@ -92,11 +92,11 @@
         "name": "Code on Social Security, 2020",
         "category": "Labour Laws",
         "subcategory": "Labour Welfare",
-        "source": "Ministry of Labour and Employment",
-        "url": "https://labour.gov.in/sites/default/files/The_Code_on_Social_Security_2020.pdf",
+        "source": "The Gazette of India / Legislative Department",
+        "url": "https://egazette.gov.in/WriteReadData/2020/222111.pdf",
         "document_type": "Act",
         "language": "English",
-        "status": "pending"
+        "status": "completed"
     },
     {
         "id": "hindu-marriage-act-1955",

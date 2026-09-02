@@ -1,0 +1,14 @@
+{
+    "source_file": "data/processed/labour/social_security/social_security_cleaned.json",
+    "output_file": "data/processed_chunks/labour/social_security/social_security_chunks.json",
+    "records_before": 164,
+    "chunks_created": 279,
+    "sections_split": 55,
+    "average_chunk_size": 1216.7,
+    "min_chunk_size": 117,
+    "max_chunk_size": 1801,
+    "empty_chunks": 0,
+    "duplicate_chunk_ids": 0,
+    "flagged_chunks": [],
+    "status": "passed"
+}

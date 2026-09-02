@@ -1,0 +1,11 @@
+{
+    "source_file": "data/raw/womens_rights/pwdva/pwdva_sections.json",
+    "output_file": "data/processed/womens_rights/pwdva/pwdva_cleaned.json",
+    "records_before": 37,
+    "records_after": 37,
+    "empty_content": 0,
+    "duplicate_ids": 0,
+    "duplicate_sections": 0,
+    "flagged_records": [],
+    "status": "passed"
+}

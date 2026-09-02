@@ -1,0 +1,11 @@
+{
+    "source_file": "data/raw/labour/social_security/social_security_sections.json",
+    "output_file": "data/processed/labour/social_security/social_security_cleaned.json",
+    "records_before": 164,
+    "records_after": 164,
+    "empty_content": 0,
+    "duplicate_ids": 0,
+    "duplicate_sections": 0,
+    "flagged_records": [],
+    "status": "passed"
+}

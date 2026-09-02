@@ -1,0 +1,14 @@
+{
+    "source_file": "data/processed/womens_rights/pwdva/pwdva_cleaned.json",
+    "output_file": "data/processed_chunks/womens_rights/pwdva/pwdva_chunks.json",
+    "records_before": 37,
+    "chunks_created": 44,
+    "sections_split": 6,
+    "average_chunk_size": 819.8,
+    "min_chunk_size": 263,
+    "max_chunk_size": 1772,
+    "empty_chunks": 0,
+    "duplicate_chunk_ids": 0,
+    "flagged_chunks": [],
+    "status": "passed"
+}

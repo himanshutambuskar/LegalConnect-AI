@@ -214,9 +214,118 @@ def extract_bns_pdf(
     return extracted_records
 
 
+def extract_pwdva_pdf(pdf_path: str, source_url: str, config: dict) -> list:
+    """
+    Extract section-wise legal content for Protection of Women from Domestic Violence Act, 2005.
+    """
+    if not os.path.exists(pdf_path):
+        raise FileNotFoundError(f"PDF file not found at: {pdf_path}")
+
+    doc = fitz.open(pdf_path)
+    logger.info(f"Opened PDF '{pdf_path}' with {len(doc)} pages.")
+
+    full_text = ""
+    page_offsets = []
+    for pno, page in enumerate(doc):
+        txt = page.get_text('text')
+        txt = re.sub(r'IndiaCode\s*', '', txt)
+        page_offsets.append((pno + 1, len(full_text)))
+        full_text += txt + '\n'
+
+    sec_titles = {
+        1: 'Short title, extent and commencement',
+        2: 'Definitions',
+        3: 'Definition of domestic violence',
+        4: 'Information to Protection Officer and exclusion of liability of informant',
+        5: 'Duties of police officers, service providers and Magistrate',
+        6: 'Duties of shelter homes',
+        7: 'Duties of medical facilities',
+        8: 'Appointment of Protection Officers',
+        9: 'Duties and functions of Protection Officers',
+        10: 'Service providers',
+        11: 'Duties of Government',
+        12: 'Application to Magistrate',
+        13: 'Service of notice',
+        14: 'Counselling',
+        15: 'Assistance of welfare expert',
+        16: 'Proceedings to be held in camera',
+        17: 'Right to reside in a shared household',
+        18: 'Protection orders',
+        19: 'Residence orders',
+        20: 'Monetary reliefs',
+        21: 'Custody orders',
+        22: 'Compensation orders',
+        23: 'Power to grant interim and ex parte orders',
+        24: 'Court to give copies of order free of cost',
+        25: 'Duration and alteration of orders',
+        26: 'Relief in other suits and legal proceedings',
+        27: 'Jurisdiction',
+        28: 'Procedure',
+        29: 'Appeal',
+        30: 'Protection Officers and members of service providers to be public servants',
+        31: 'Penalty for breach of protection order by respondent',
+        32: 'Cognizance and proof',
+        33: 'Penalty for not discharging duty by Protection Officer',
+        34: 'Cognizance of offence committed by Protection Officer',
+        35: 'Protection of action taken in good faith',
+        36: 'Act not in derogation of any other law',
+        37: 'Power of Central Government to make rules'
+    }
+
+    sec_positions = []
+    for sec_num in range(1, config["max_sections"] + 1):
+        pattern = rf'\n{sec_num}\.\s+'
+        matches = [m.start() for m in re.finditer(pattern, full_text)]
+        chosen_pos = None
+        for m in matches:
+            if m > 500:
+                chosen_pos = m
+                break
+        if chosen_pos is None and matches:
+            chosen_pos = matches[-1]
+        
+        if chosen_pos is not None:
+            sec_positions.append((sec_num, chosen_pos))
+
+    sec_positions.sort(key=lambda x: x[1])
+    today_str = datetime.date.today().isoformat()
+    extracted_records = []
+
+    for idx in range(len(sec_positions)):
+        sec_num, start_pos = sec_positions[idx]
+        end_pos = sec_positions[idx+1][1] if idx + 1 < len(sec_positions) else len(full_text)
+        
+        sec_text = full_text[start_pos:end_pos].strip()
+        title = sec_titles.get(sec_num, f'Section {sec_num}')
+
+        page_num = 1
+        for pno, poff in page_offsets:
+            if start_pos >= poff:
+                page_num = pno
+
+        extracted_records.append({
+            'id': f'PWDVA-2005-SECTION-{sec_num}',
+            'act_key': 'pwdva',
+            'act_name': config['name'],
+            'act_year': config['act_year'],
+            'category': config['category'],
+            'subcategory': config['subcategory'],
+            'section': str(sec_num),
+            'title': title,
+            'content': sec_text,
+            'source': config['source'],
+            'source_url': source_url,
+            'page': page_num,
+            'ingestion_date': today_str
+        })
+
+    logger.info(f"Extracted {len(extracted_records)} section records.")
+    return extracted_records
+
+
 def main():
     parser = argparse.ArgumentParser(description="Legal Data Extraction Script")
-    parser.add_argument("--act", type=str, default="bns", choices=["bns", "bnss", "bsa", "cpa"], help="Act key to extract (default: bns)")
+    parser.add_argument("--act", type=str, default="bns", choices=["bns", "bnss", "bsa", "cpa", "css", "pwdva"], help="Act key to extract (default: bns)")
     parser.add_argument("--pdf", type=str, help="Path to input PDF file")
     parser.add_argument("--output", type=str, help="Path to output JSON file")
     parser.add_argument("--download", action="store_true", help="Download raw PDF if not present")
@@ -267,6 +376,28 @@ def main():
             "source": "The Gazette of India / Legislative Department",
             "act_year": "2019",
         },
+        "css": {
+            "pdf": "data/raw/labour/social_security/code_on_social_security_2020.pdf",
+            "output": "data/raw/labour/social_security/social_security_sections.json",
+            "url": "https://egazette.gov.in/WriteReadData/2020/222111.pdf",
+            "max_sections": 164,
+            "name": "Code on Social Security, 2020",
+            "category": "Labour Laws",
+            "subcategory": "Labour Welfare",
+            "source": "The Gazette of India / Legislative Department",
+            "act_year": "2020",
+        },
+        "pwdva": {
+            "pdf": "data/raw/womens_rights/pwdva/pwdva_2005.pdf",
+            "output": "data/raw/womens_rights/pwdva/pwdva_sections.json",
+            "url": "https://indiacode.gov.in/handle/123456789/2021",
+            "max_sections": 37,
+            "name": "Protection of Women from Domestic Violence Act, 2005",
+            "category": "Women's Rights",
+            "subcategory": "Women Protection",
+            "source": "India Code",
+            "act_year": "2005",
+        },
     }
     config = act_configs[args.act]
     pdf_path = args.pdf or config["pdf"]
@@ -278,17 +409,20 @@ def main():
             logger.error(f"Could not obtain raw {args.act.upper()} PDF. Stopping extraction.")
             sys.exit(1)
 
-    records = extract_bns_pdf(
-        pdf_path,
-        source_url=config["url"],
-        max_sections=config["max_sections"],
-        act_key=args.act,
-        act_name=config["name"],
-        category=config.get("category", "Criminal Laws"),
-        subcategory=config["subcategory"],
-        source=config["source"],
-        act_year=config.get("act_year", "2023"),
-    )
+    if args.act == "pwdva":
+        records = extract_pwdva_pdf(pdf_path, source_url=config["url"], config=config)
+    else:
+        records = extract_bns_pdf(
+            pdf_path,
+            source_url=config["url"],
+            max_sections=config["max_sections"],
+            act_key=args.act,
+            act_name=config["name"],
+            category=config.get("category", "Criminal Laws"),
+            subcategory=config["subcategory"],
+            source=config["source"],
+            act_year=config.get("act_year", "2023"),
+        )
 
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     with open(output_path, 'w', encoding='utf-8') as f:
