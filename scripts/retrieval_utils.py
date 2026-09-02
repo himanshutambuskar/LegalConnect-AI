@@ -22,13 +22,17 @@ LEGAL_ALIASES = {
     "ipc": "Indian Penal Code",
     "bns": "Bharatiya Nyaya Sanhita",
     "bnss": "Bharatiya Nagarik Suraksha Sanhita",
-    "bsa": "Bharatiya Sakshya Adhiniyam"
+    "bsa": "Bharatiya Sakshya Adhiniyam",
+    "cpa": "Consumer Protection Act",
+    "it": "Information Technology Act"
 }
 
 LEGAL_ACT_PATTERNS = {
     "Bharatiya Nyaya Sanhita, 2023": [r"\bbns\b", r"\bbharatiya\s+nyaya\s+sanhita\b"],
     "Bharatiya Nagarik Suraksha Sanhita, 2023": [r"\bbnss\b", r"\bbharatiya\s+nagarik\s+suraksha\s+sanhita\b"],
     "Bharatiya Sakshya Adhiniyam, 2023": [r"\bbsa\b", r"\bbharatiya\s+sakshya\s+adhiniyam\b"],
+    "Information Technology Act, 2000": [r"\bit\s+act\b", r"\binformation\s+technology\s+act\b"],
+    "Consumer Protection Act, 2019": [r"\bcpa\b", r"\bconsumer\s+protection\s+act\b"]
 }
 
 DEFAULT_CANDIDATE_POOL_SIZE = 20
@@ -42,7 +46,7 @@ TOPIC_STOP_WORDS = {
     "under", "does", "say", "about", "when", "may", "how", "are", "as",
     "with", "by", "from", "on", "at", "it", "this", "that", "be",
     "bharatiya", "nyaya", "nagarik", "suraksha", "sakshya", "adhiniyam", "sanhita",
-    "bns", "bnss", "bsa",
+    "bns", "bnss", "bsa", "cpa", "consumer", "protection", "act"
 }
 
 

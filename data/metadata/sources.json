@@ -19,7 +19,7 @@
         "url": "https://www.mha.gov.in/sites/default/files/250883_english_01042024.pdf",
         "document_type": "Act",
         "language": "English",
-        "status": "pending"
+        "status": "completed"
     },
     {
         "id": "bsa-2023",
@@ -30,7 +30,7 @@
         "url": "https://www.mha.gov.in/sites/default/files/250882_english_01042024.pdf",
         "document_type": "Act",
         "language": "English",
-        "status": "pending"
+        "status": "completed"
     },
     {
         "id": "constitution-india",
@@ -48,11 +48,11 @@
         "name": "Consumer Protection Act, 2019",
         "category": "Consumer Protection",
         "subcategory": "Consumer Law",
-        "source": "India Code / NCDRC",
-        "url": "https://www.indiacode.nic.in/handle/123456789/15256",
+        "source": "The Gazette of India / Legislative Department",
+        "url": "https://egazette.gov.in/WriteReadData/2019/210422.pdf",
         "document_type": "Act",
         "language": "English",
-        "status": "pending"
+        "status": "completed"
     },
     {
         "id": "it-act-2000",

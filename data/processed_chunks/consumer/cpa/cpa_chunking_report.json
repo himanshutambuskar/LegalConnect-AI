@@ -1,0 +1,14 @@
+{
+    "source_file": "data/processed/consumer/cpa/cpa_cleaned.json",
+    "output_file": "data/processed_chunks/consumer/cpa/cpa_chunks.json",
+    "records_before": 107,
+    "chunks_created": 142,
+    "sections_split": 14,
+    "average_chunk_size": 868.5,
+    "min_chunk_size": 57,
+    "max_chunk_size": 1798,
+    "empty_chunks": 0,
+    "duplicate_chunk_ids": 0,
+    "flagged_chunks": [],
+    "status": "passed"
+}

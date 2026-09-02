@@ -1,0 +1,11 @@
+{
+    "source_file": "data/raw/consumer/cpa/cpa_sections.json",
+    "output_file": "data/processed/consumer/cpa/cpa_cleaned.json",
+    "records_before": 107,
+    "records_after": 107,
+    "empty_content": 0,
+    "duplicate_ids": 0,
+    "duplicate_sections": 0,
+    "flagged_records": [],
+    "status": "passed"
+}

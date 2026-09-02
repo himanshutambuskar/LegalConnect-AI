@@ -93,11 +93,13 @@ def extract_bns_pdf(
     max_sections: int = 358,
     act_key: str = "bns",
     act_name: str = "Bharatiya Nyaya Sanhita, 2023",
+    category: str = "Criminal Laws",
     subcategory: str = "Criminal Law",
     source: str = "India Code / BPRD",
+    act_year: str = "2023",
 ) -> list:
     """
-    Extract section-wise legal content from a numbered criminal-law Act PDF.
+    Extract section-wise legal content from a numbered Act PDF.
     Preserves exact legal wording.
     """
     if not os.path.exists(pdf_path):
@@ -191,9 +193,9 @@ def extract_bns_pdf(
 
         sec_num_str = str(entry['sec_num'])
         record = {
-            "id": f"{act_key.upper()}-2023-SECTION-{sec_num_str}",
+            "id": f"{act_key.upper()}-{act_year}-SECTION-{sec_num_str}",
             "act": act_name,
-            "category": "Criminal Laws",
+            "category": category,
             "subcategory": subcategory,
             "section": f"Section {sec_num_str}",
             "section_number": sec_num_str,
@@ -214,7 +216,7 @@ def extract_bns_pdf(
 
 def main():
     parser = argparse.ArgumentParser(description="Legal Data Extraction Script")
-    parser.add_argument("--act", type=str, default="bns", choices=["bns", "bnss", "bsa"], help="Act key to extract (default: bns)")
+    parser.add_argument("--act", type=str, default="bns", choices=["bns", "bnss", "bsa", "cpa"], help="Act key to extract (default: bns)")
     parser.add_argument("--pdf", type=str, help="Path to input PDF file")
     parser.add_argument("--output", type=str, help="Path to output JSON file")
     parser.add_argument("--download", action="store_true", help="Download raw PDF if not present")
@@ -227,8 +229,10 @@ def main():
             "url": "https://bprd.nic.in/uploads/pdf/1706692028_eeccb6a2701f4c13ac9b.pdf",
             "max_sections": 358,
             "name": "Bharatiya Nyaya Sanhita, 2023",
+            "category": "Criminal Laws",
             "subcategory": "Criminal Law",
             "source": "India Code / BPRD",
+            "act_year": "2023",
         },
         "bnss": {
             "pdf": "data/raw/criminal/bnss/bnss_2023.pdf",
@@ -236,8 +240,10 @@ def main():
             "url": "https://www.mha.gov.in/sites/default/files/250884_2_english_01042024.pdf",
             "max_sections": 531,
             "name": "Bharatiya Nagarik Suraksha Sanhita, 2023",
+            "category": "Criminal Laws",
             "subcategory": "Criminal Procedure",
             "source": "India Code / Ministry of Home Affairs",
+            "act_year": "2023",
         },
         "bsa": {
             "pdf": "data/raw/criminal/bsa/bsa_2023.pdf",
@@ -245,8 +251,21 @@ def main():
             "url": "https://www.mha.gov.in/sites/default/files/250882_english_01042024.pdf",
             "max_sections": 170,
             "name": "Bharatiya Sakshya Adhiniyam, 2023",
+            "category": "Criminal Laws",
             "subcategory": "Evidence Law",
             "source": "India Code / Ministry of Home Affairs",
+            "act_year": "2023",
+        },
+        "cpa": {
+            "pdf": "data/raw/consumer/cpa/cpa_2019.pdf",
+            "output": "data/raw/consumer/cpa/cpa_sections.json",
+            "url": "https://egazette.gov.in/WriteReadData/2019/210422.pdf",
+            "max_sections": 107,
+            "name": "Consumer Protection Act, 2019",
+            "category": "Consumer Protection",
+            "subcategory": "Consumer Law",
+            "source": "The Gazette of India / Legislative Department",
+            "act_year": "2019",
         },
     }
     config = act_configs[args.act]
@@ -265,8 +284,10 @@ def main():
         max_sections=config["max_sections"],
         act_key=args.act,
         act_name=config["name"],
+        category=config.get("category", "Criminal Laws"),
         subcategory=config["subcategory"],
         source=config["source"],
+        act_year=config.get("act_year", "2023"),
     )
 
     os.makedirs(os.path.dirname(output_path), exist_ok=True)

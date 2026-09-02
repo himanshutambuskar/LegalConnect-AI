@@ -51,6 +51,7 @@ BNS_ACT = "Bharatiya Nyaya Sanhita, 2023"
 BNSS_ACT = "Bharatiya Nagarik Suraksha Sanhita, 2023"
 BSA_ACT = "Bharatiya Sakshya Adhiniyam, 2023"
 IT_ACT = "Information Technology Act, 2000"
+CPA_ACT = "Consumer Protection Act, 2019"
 
 BENCHMARK_TEST_QUERIES = [
     {
@@ -177,6 +178,26 @@ BENCHMARK_TEST_QUERIES = [
         "query": "What does BSA say about repeal of the Indian Evidence Act?",
         "expected_section": "170",
         "expected_act": BSA_ACT,
+    },
+    {
+        "query": "What does Consumer Protection Act Section 83 say about product liability action?",
+        "expected_section": "83",
+        "expected_act": CPA_ACT,
+    },
+    {
+        "query": "What is the penalty for false or misleading advertisement under CPA section 21?",
+        "expected_section": "21",
+        "expected_act": CPA_ACT,
+    },
+    {
+        "query": "What is the Central Consumer Protection Authority under CPA section 10?",
+        "expected_section": "10",
+        "expected_act": CPA_ACT,
+    },
+    {
+        "query": "What happens to the Consumer Protection Act 1986 under CPA section 107?",
+        "expected_section": "107",
+        "expected_act": CPA_ACT,
     }
 ]
 
