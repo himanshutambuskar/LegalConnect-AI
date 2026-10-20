@@ -41,7 +41,7 @@
         "url": "https://legislative.gov.in/constitution-of-india",
         "document_type": "Constitution",
         "language": "English",
-        "status": "pending"
+        "status": "completed"
     },
     {
         "id": "cpa-2019",
@@ -81,11 +81,11 @@
         "name": "Sexual Harassment of Women at Workplace Act, 2013",
         "category": "Women's Rights",
         "subcategory": "Workplace Safety",
-        "source": "India Code",
-        "url": "https://www.indiacode.nic.in/handle/123456789/2104",
+        "source": "The Gazette of India / Ministry of Law and Justice",
+        "url": "https://kwa.kerala.gov.in/wp-content/uploads/2023/08/THE-SEXUAL-HARASSMENT-OF-WOMEN-AT-WORKPLACE.pdf",
         "document_type": "Act",
         "language": "English",
-        "status": "pending"
+        "status": "completed"
     },
     {
         "id": "code-social-security-2020",
@@ -107,51 +107,51 @@
         "url": "https://www.indiacode.nic.in/handle/123456789/1560",
         "document_type": "Act",
         "language": "English",
-        "status": "pending"
+        "status": "completed"
     },
     {
         "id": "motor-vehicles-act-1988",
         "name": "Motor Vehicles Act, 1988",
         "category": "Traffic Laws",
         "subcategory": "Road & Traffic Law",
-        "source": "MoRTH / India Code",
-        "url": "https://morth.nic.in/motor-vehicles-act-1988",
+        "source": "India Code / Ministry of Road Transport and Highways",
+        "url": "https://www.indiacode.nic.in/bitstream/123456789/9460/1/a1988-59.pdf",
         "document_type": "Act",
         "language": "English",
-        "status": "pending"
+        "status": "completed"
     },
     {
         "id": "transfer-property-act-1882",
         "name": "Transfer of Property Act, 1882",
         "category": "Property Laws",
         "subcategory": "Property Rights",
-        "source": "India Code",
-        "url": "https://www.indiacode.nic.in/handle/123456789/2338",
+        "source": "India Code / Legislative Department",
+        "url": "https://www.indiacode.nic.in/bitstream/123456789/2338/1/A1882-04.pdf",
         "document_type": "Act",
         "language": "English",
-        "status": "pending"
+        "status": "completed"
     },
     {
         "id": "rti-act-2005",
         "name": "Right to Information Act, 2005",
         "category": "RTI",
         "subcategory": "Public Information",
-        "source": "RTI Portal / India Code",
-        "url": "https://rti.gov.in/",
+        "source": "Central Information Commission / Ministry of Law and Justice",
+        "url": "https://cic.gov.in/sites/default/files/RTI-Act_English.pdf",
         "document_type": "Act",
         "language": "English",
-        "status": "pending"
+        "status": "completed"
     },
     {
         "id": "environment-protection-act-1986",
         "name": "Environment (Protection) Act, 1986",
         "category": "Environmental Laws",
         "subcategory": "Environmental Protection",
-        "source": "CPCB / India Code",
-        "url": "https://cpcb.nic.in/env-protection-act-1986/",
+        "source": "India Code / Ministry of Environment, Forest and Climate Change",
+        "url": "https://www.indiacode.nic.in/bitstream/123456789/4316/1/ep_act_1986.pdf",
         "document_type": "Act",
         "language": "English",
-        "status": "pending"
+        "status": "completed"
     },
     {
         "id": "lsa-act-1987",
@@ -162,7 +162,7 @@
         "url": "https://nalsa.gov.in/act-rules",
         "document_type": "Act",
         "language": "English",
-        "status": "pending"
+        "status": "completed"
     },
     {
         "id": "myscheme-portal",
@@ -173,6 +173,6 @@
         "url": "https://www.myscheme.gov.in/",
         "document_type": "Government Scheme",
         "language": "English",
-        "status": "pending"
+        "status": "completed"
     }
 ]

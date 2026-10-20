@@ -323,9 +323,790 @@ def extract_pwdva_pdf(pdf_path: str, source_url: str, config: dict) -> list:
     return extracted_records
 
 
+def extract_rti_pdf(pdf_path: str, source_url: str, config: dict) -> list:
+    """
+    Extract section-wise legal content for Right to Information Act, 2005.
+    """
+    if not os.path.exists(pdf_path):
+        raise FileNotFoundError(f"PDF file not found at: {pdf_path}")
+
+    doc = fitz.open(pdf_path)
+    logger.info(f"Opened PDF '{pdf_path}' with {len(doc)} pages.")
+
+    full_text = ""
+    page_offsets = []
+    for pno in range(5, min(24, len(doc))):
+        txt = doc[pno].get_text('text')
+        txt = re.sub(r'Right to Information Act,?\s*2005\s*', '', txt)
+        txt = re.sub(r'\(Chapter\s+[^\)]+\)\s*', '', txt)
+        page_offsets.append((pno + 1, len(full_text)))
+        full_text += txt + '\n'
+
+    sec_titles = {
+        1: 'Short title, extent and commencement',
+        2: 'Definitions',
+        3: 'Right to information',
+        4: 'Obligations of public authorities',
+        5: 'Designation of Public Information Officers',
+        6: 'Request for obtaining information',
+        7: 'Disposal of request',
+        8: 'Exemption from disclosure of information',
+        9: 'Grounds for rejection to access in certain cases',
+        10: 'Severability',
+        11: 'Third party information',
+        12: 'Constitution of Central Information Commission',
+        13: 'Term of office and conditions of service',
+        14: 'Removal of Chief Information Commissioner or Information Commissioner',
+        15: 'Constitution of State Information Commission',
+        16: 'Term of office and conditions of service',
+        17: 'Removal of State Chief Information Commissioner or State Information Commissioner',
+        18: 'Powers and functions of Information Commissions',
+        19: 'Appeal',
+        20: 'Penalties',
+        21: 'Protection of action taken in good faith',
+        22: 'Act to have overriding effect',
+        23: 'Bar of jurisdiction of courts',
+        24: 'Act not to apply in certain organizations',
+        25: 'Monitoring and reporting',
+        26: 'Appropriate Government to prepare programmes',
+        27: 'Power to make rules by appropriate Government',
+        28: 'Power to make rules by competent authority',
+        29: 'Laying of rules',
+        30: 'Power to remove difficulties',
+        31: 'Repeal'
+    }
+
+    sec_positions = []
+    for sec_num in range(1, 32):
+        pattern = rf'\n\s*{sec_num}\.\s*'
+        matches = [m.start() for m in re.finditer(pattern, full_text)]
+        if matches:
+            sec_positions.append((sec_num, matches[0]))
+
+    sec_positions.sort(key=lambda x: x[1])
+    today_str = datetime.date.today().isoformat()
+    extracted_records = []
+
+    for idx in range(len(sec_positions)):
+        sec_num, start_pos = sec_positions[idx]
+        end_pos = sec_positions[idx+1][1] if idx + 1 < len(sec_positions) else len(full_text)
+
+        sec_text = full_text[start_pos:end_pos].strip()
+        title = sec_titles.get(sec_num, f'Section {sec_num}')
+
+        page_num = 6
+        for pno, poff in page_offsets:
+            if start_pos >= poff:
+                page_num = pno
+
+        extracted_records.append({
+            'id': f'RTI-2005-SECTION-{sec_num}',
+            'act': config['name'],
+            'act_key': 'rti',
+            'act_name': config['name'],
+            'act_year': config['act_year'],
+            'category': config['category'],
+            'subcategory': config['subcategory'],
+            'section': f'Section {sec_num}',
+            'section_number': str(sec_num),
+            'title': title,
+            'content': sec_text,
+            'source': config['source'],
+            'source_url': source_url,
+            'document_type': 'Act',
+            'page': page_num,
+            'language': 'English',
+            'retrieved_date': today_str
+        })
+
+    logger.info(f"Extracted {len(extracted_records)} section records.")
+    return extracted_records
+
+
+def extract_lsa_pdf(pdf_path: str, source_url: str, config: dict) -> list:
+    """
+    Extract section-wise legal content for Legal Services Authorities Act, 1987.
+    """
+    if not os.path.exists(pdf_path):
+        raise FileNotFoundError(f"PDF file not found at: {pdf_path}")
+
+    doc = fitz.open(pdf_path)
+    logger.info(f"Opened PDF '{pdf_path}' with {len(doc)} pages.")
+
+    full_text = ""
+    page_offsets = []
+
+    for pno in range(2, len(doc)):
+        page = doc[pno]
+        blocks = page.get_text("blocks")
+        page_text_blocks = []
+        for b in blocks:
+            txt = b[4].strip()
+            # Standalone page number at bottom of page
+            if txt.isdigit() and b[1] > 770:
+                continue
+            # Legislative footnote blocks at the bottom of page
+            if b[1] > 650 and any(kw in txt for kw in ["Subs. by", "Ins. by", "w.e.f.", "omitted by", "The words", "vide notification"]):
+                continue
+            page_text_blocks.append(b[4])
+
+        page_offsets.append((pno + 1, len(full_text)))
+        full_text += "\n".join(page_text_blocks) + "\n"
+
+    sec_titles = {
+        "1": "Short title, extent and commencement",
+        "2": "Definitions",
+        "3": "Constitution of the National Legal Services Authority",
+        "3A": "Supreme Court Legal Services Committee",
+        "4": "Functions of the Central Authority",
+        "5": "Central Authority to work in coordination with other agencies",
+        "6": "Constitution of State Legal Services Authority",
+        "7": "Functions of the State Authority",
+        "8": "State Authority to act in coordination with other agencies, etc., and be subject to directions given by the Central Authority",
+        "8A": "High Court Legal Services Committee",
+        "9": "District Legal Services Authority",
+        "10": "Functions of the District Authority",
+        "11": "District Authority to act in coordination with other agencies and be subject to directions given by the Central Authority, etc.",
+        "11A": "Taluk Legal Services Committee",
+        "11B": "Functions of Taluk Legal Services Committee",
+        "12": "Criteria for giving legal services",
+        "13": "Entitlement of legal services",
+        "14": "Grants by the Central Government",
+        "15": "National Legal Aid Fund",
+        "16": "State Legal Aid Fund",
+        "17": "District Legal Aid Fund",
+        "18": "Accounts and audit",
+        "19": "Organisation of Lok Adalats",
+        "20": "Cognizance of cases by Lok Adalats",
+        "21": "Award of Lok Adalat",
+        "22": "Powers of Lok Adalat or Permanent Lok Adalat",
+        "22A": "Definitions",
+        "22B": "Establishment of Permanent Lok Adalats",
+        "22C": "Cognizance of cases by Permanent Lok Adalat",
+        "22D": "Procedure of Permanent Lok Adalat",
+        "22E": "Award of Permanent Lok Adalat to be final",
+        "23": "Members and staff of Authorities, Committees and Lok Adalats to be public servants",
+        "24": "Protection of action taken in good faith",
+        "25": "Act to have overriding effect",
+        "26": "Power to remove difficulties",
+        "27": "Power of Central Government to make rules",
+        "28": "Power of State Government to make rules",
+        "29": "Power of Central Authority to make regulations",
+        "29A": "Power of State Authority to make regulations",
+        "30": "Laying of rules and regulations"
+    }
+
+    sections = [
+        "1", "2", "3", "3A", "4", "5", "6", "7", "8", "8A", "9", "10", "11", "11A", "11B",
+        "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22",
+        "22A", "22B", "22C", "22D", "22E", "23", "24", "25", "26", "27", "28", "29", "29A", "30"
+    ]
+
+    sec_positions = []
+    for s in sections:
+        pattern = rf'(?:^|\n)\s*(?:\[\d+\]|\d+\[)?\s*{re.escape(s)}\.\s*[A-Z]'
+        m = re.search(pattern, full_text)
+        if not m:
+            logger.error(f"Could not locate Section {s} in LSA text!")
+        else:
+            sec_positions.append((s, m.start()))
+
+    today_str = datetime.date.today().isoformat()
+    extracted_records = []
+
+    for idx in range(len(sec_positions)):
+        sec_num_str, start_pos = sec_positions[idx]
+        end_pos = sec_positions[idx + 1][1] if idx + 1 < len(sec_positions) else len(full_text)
+
+        sec_text = full_text[start_pos:end_pos].strip()
+        sec_text = re.sub(r'^\s*(?:\[\d+\]|\d+\[)\s*', '', sec_text)
+        sec_text = re.sub(r'\n\s*CHAPTER\s+[IVXLCDMA-Z0-9]+\s*\n.*$', '', sec_text, flags=re.DOTALL).strip()
+
+        title = sec_titles.get(sec_num_str, f"Section {sec_num_str}")
+
+        page_num = 3
+        for pno, poff in page_offsets:
+            if start_pos >= poff:
+                page_num = pno
+
+        extracted_records.append({
+            "id": f"LSA-1987-SECTION-{sec_num_str}",
+            "act": config["name"],
+            "act_key": "lsa",
+            "act_name": config["name"],
+            "act_year": config["act_year"],
+            "category": config["category"],
+            "subcategory": config["subcategory"],
+            "section": f"Section {sec_num_str}",
+            "section_number": sec_num_str,
+            "title": title,
+            "content": sec_text,
+            "source": config["source"],
+            "source_url": source_url,
+            "document_type": "Act",
+            "page": page_num,
+            "language": "English",
+            "retrieved_date": today_str
+        })
+
+    logger.info(f"Extracted {len(extracted_records)} section records for {config['name']}.")
+    return extracted_records
+
+
+def extract_hma_pdf(pdf_path: str, source_url: str, config: dict) -> list:
+    """
+    Extract section-wise legal content for Hindu Marriage Act, 1955.
+    """
+    if not os.path.exists(pdf_path):
+        raise FileNotFoundError(f"PDF file not found at: {pdf_path}")
+
+    doc = fitz.open(pdf_path)
+    logger.info(f"Opened PDF '{pdf_path}' with {len(doc)} pages.")
+
+    full_text = ""
+    page_offsets = []
+
+    for pno in range(2, len(doc)):
+        page = doc[pno]
+        blocks = page.get_text("blocks")
+        page_text_blocks = []
+        for b in blocks:
+            txt = b[4].strip()
+            txt_clean = re.sub(r'^\s*\d{1,4}\s*\n', '', b[4])
+            # Exclude legislative amendment footnote blocks at bottom of page
+            if b[1] > 670 and any(kw in txt for kw in ["Subs. by", "Ins. by", "w.e.f.", "omitted by", "The words", "vide notification", "The Act has been extended"]):
+                continue
+            page_text_blocks.append(txt_clean)
+
+        page_offsets.append((pno + 1, len(full_text)))
+        full_text += "\n".join(page_text_blocks) + "\n"
+
+    sec_titles = {
+        "1": "Short title and extent",
+        "2": "Application of Act",
+        "3": "Definitions",
+        "4": "Overriding effect of Act",
+        "5": "Conditions for a Hindu marriage",
+        "6": "Guardianship in marriage (Omitted)",
+        "7": "Ceremonies for a Hindu marriage",
+        "8": "Registration of Hindu marriages",
+        "9": "Restitution of conjugal rights",
+        "10": "Judicial separation",
+        "11": "Void marriages",
+        "12": "Voidable marriages",
+        "13": "Divorce",
+        "13A": "Alternate relief in divorce proceedings",
+        "13B": "Divorce by mutual consent",
+        "14": "No petition for divorce to be presented within one year of marriage",
+        "15": "Divorced persons when may marry again",
+        "16": "Legitimacy of children of void and voidable marriages",
+        "17": "Punishment of bigamy",
+        "18": "Punishment for contravention of certain other conditions for a Hindu marriage",
+        "19": "Court to which petition shall be presented",
+        "20": "Contents and verification of petitions",
+        "21": "Application of Act 5 of 1908",
+        "21A": "Power to transfer petitions in certain cases",
+        "21B": "Special provision relating to trial and disposal of petitions under the Act",
+        "21C": "Documentary evidence",
+        "22": "Proceedings to be in camera and may not be printed or published",
+        "23": "Decree in proceedings",
+        "23A": "Relief for respondent in divorce and other proceedings",
+        "24": "Maintenance pendente lite and expenses of proceedings",
+        "25": "Permanent alimony and maintenance",
+        "26": "Custody of children",
+        "27": "Disposal of property",
+        "28": "Appeals from decrees and orders",
+        "28A": "Enforcement of decrees and orders",
+        "29": "Savings",
+        "30": "Repeals (Repealed)"
+    }
+
+    sections = [
+        "1", "2", "3", "4", "5", "6", "7", "8", "9", "10",
+        "11", "12", "13", "13A", "13B", "14", "15", "16", "17", "18",
+        "19", "20", "21", "21A", "21B", "21C", "22", "23", "23A", "24",
+        "25", "26", "27", "28", "28A", "29", "30"
+    ]
+
+    sec_positions = []
+    for s in sections:
+        pattern = rf'(?:^|\n)\s*(?:\[\d+\]|\d+\[)?\s*{re.escape(s)}\.\s*[A-Za-z\[]'
+        m = re.search(pattern, full_text)
+        if not m:
+            logger.error(f"Could not locate Section {s} in HMA text!")
+        else:
+            sec_positions.append((s, m.start()))
+
+    today_str = datetime.date.today().isoformat()
+    extracted_records = []
+
+    for idx in range(len(sec_positions)):
+        sec_num_str, start_pos = sec_positions[idx]
+        end_pos = sec_positions[idx + 1][1] if idx + 1 < len(sec_positions) else len(full_text)
+
+        sec_text = full_text[start_pos:end_pos].strip()
+        sec_text = re.sub(r'^\s*(?:\[\d+\]|\d+\[)\s*', '', sec_text)
+        sec_text = re.sub(r'\n\s*[A-Z\s]{4,}\s*$', '', sec_text).strip()
+
+        title = sec_titles.get(sec_num_str, f"Section {sec_num_str}")
+
+        page_num = 3
+        for pno, poff in page_offsets:
+            if start_pos >= poff:
+                page_num = pno
+
+        extracted_records.append({
+            "id": f"HMA-1955-SECTION-{sec_num_str}",
+            "act": config["name"],
+            "act_key": "hma",
+            "act_name": config["name"],
+            "act_year": config["act_year"],
+            "category": config["category"],
+            "subcategory": config["subcategory"],
+            "section": f"Section {sec_num_str}",
+            "section_number": sec_num_str,
+            "title": title,
+            "content": sec_text,
+            "source": config["source"],
+            "source_url": source_url,
+            "document_type": "Act",
+            "page": page_num,
+            "language": "English",
+            "retrieved_date": today_str
+        })
+
+    logger.info(f"Extracted {len(extracted_records)} section records for {config['name']}.")
+    return extracted_records
+
+
+def extract_posh_pdf(pdf_path: str, source_url: str, config: dict) -> list:
+    """
+    Extract section-wise legal content for Sexual Harassment of Women at Workplace Act, 2013.
+    """
+    if not os.path.exists(pdf_path):
+        raise FileNotFoundError(f"PDF file not found at: {pdf_path}")
+
+    doc = fitz.open(pdf_path)
+    logger.info(f"Opened PDF '{pdf_path}' with {len(doc)} pages.")
+
+    full_text = ""
+    page_offsets = []
+
+    for pno in range(3, len(doc)):
+        page = doc[pno]
+        blocks = page.get_text("blocks")
+        page_text_blocks = []
+        for b in blocks:
+            txt = b[4].strip()
+            # Standalone page number
+            if txt.isdigit() and (b[1] < 60 or b[1] > 770):
+                continue
+            if "Gazette of India" in txt and b[1] < 70:
+                continue
+            page_text_blocks.append(b[4])
+
+        page_offsets.append((pno + 1, len(full_text)))
+        full_text += "\n".join(page_text_blocks) + "\n"
+
+    # Normalize typographical quirk in Gazette print (Section 18 printed as l8.)
+    full_text = re.sub(r'(?:^|\n)\s*l8\.\s*', '\n18. ', full_text)
+
+    sec_titles = {
+        1: "Short title, extent and commencement",
+        2: "Definitions",
+        3: "Prevention of sexual harassment",
+        4: "Constitution of Internal Complaints Committee",
+        5: "Notification of District Officer",
+        6: "Constitution and jurisdiction of Local Complaints Committee",
+        7: "Composition, tenure and other terms and conditions of Local Complaints Committee",
+        8: "Grants and audit",
+        9: "Complaint of sexual harassment",
+        10: "Conciliation",
+        11: "Inquiry into complaint",
+        12: "Action during pendency of inquiry",
+        13: "Inquiry report",
+        14: "Punishment for false or malicious complaint and false evidence",
+        15: "Determination of compensation",
+        16: "Prohibition of publication or making known contents of complaint and inquiry proceedings",
+        17: "Penalty for publication or making known contents of complaint and inquiry proceedings",
+        18: "Appeal",
+        19: "Duties of employer",
+        20: "Duties and powers of District Officer",
+        21: "Committee to submit annual report",
+        22: "Employer to include information in annual report",
+        23: "Appropriate Government to monitor implementation and maintain data",
+        24: "Appropriate Government to take measures to publicise the Act",
+        25: "Power to call for information and inspection of records",
+        26: "Penalty for non-compliance with provisions of Act",
+        27: "Cognizance of offence by courts",
+        28: "Act not in derogation of any other law",
+        29: "Power of appropriate Government to make rules",
+        30: "Power to remove difficulties"
+    }
+
+    sections = list(range(1, 31))
+    sec_positions = []
+    for s in sections:
+        pattern = rf'(?:^|\n)\s*{s}\.\s*([A-Za-z\[][^\n]+)'
+        m = re.search(pattern, full_text)
+        if not m:
+            logger.error(f"Could not locate Section {s} in POSH text!")
+        else:
+            sec_positions.append((s, m.start()))
+
+    today_str = datetime.date.today().isoformat()
+    extracted_records = []
+
+    for idx in range(len(sec_positions)):
+        sec_num, start_pos = sec_positions[idx]
+        end_pos = sec_positions[idx + 1][1] if idx + 1 < len(sec_positions) else len(full_text)
+
+        sec_text = full_text[start_pos:end_pos].strip()
+        sec_text = re.sub(r'^\s*(?:\[\d+\]|\d+\[)\s*', '', sec_text)
+        sec_text = re.sub(r'\n\s*CHAPTER[\s\-]+[IVXLCDMA-Z0-9]+.*$', '', sec_text, flags=re.DOTALL).strip()
+
+        title = sec_titles.get(sec_num, f"Section {sec_num}")
+
+        page_num = 4
+        for pno, poff in page_offsets:
+            if start_pos >= poff:
+                page_num = pno
+
+        extracted_records.append({
+            "id": f"POSH-2013-SECTION-{sec_num}",
+            "act": config["name"],
+            "act_key": "posh",
+            "act_name": config["name"],
+            "act_year": config["act_year"],
+            "category": config["category"],
+            "subcategory": config["subcategory"],
+            "section": f"Section {sec_num}",
+            "section_number": str(sec_num),
+            "title": title,
+            "content": sec_text,
+            "source": config["source"],
+            "source_url": source_url,
+            "document_type": "Act",
+            "page": page_num,
+            "language": "English",
+            "retrieved_date": today_str
+        })
+
+    logger.info(f"Extracted {len(extracted_records)} section records for {config['name']}.")
+    return extracted_records
+
+
+def extract_mva_pdf(pdf_path: str, source_url: str, config: dict) -> list:
+    """
+    Extract section-wise legal content for Motor Vehicles Act, 1988 (Act No. 59 of 1988).
+    Extracts all substantive sections from Section 1 to 217A.
+    """
+    if not os.path.exists(pdf_path):
+        raise FileNotFoundError(f"PDF file not found at: {pdf_path}")
+
+    doc = fitz.open(pdf_path)
+    logger.info(f"Opened PDF '{pdf_path}' with {len(doc)} pages.")
+
+    # 1. Parse ARRANGEMENT OF SECTIONS from pages 1 to 7 (0-indexed 0 to 6)
+    arr_text = ""
+    for p in range(min(7, len(doc))):
+        arr_text += doc[p].get_text() + "\n"
+
+    lines = [l.strip() for l in arr_text.split('\n') if l.strip()]
+    sec_titles = {}
+    current_sec = None
+    for l in lines:
+        m = re.match(r'^(\d+[A-Z]?)\.\s*(.*)', l)
+        if m:
+            current_sec = m.group(1)
+            sec_titles[current_sec] = m.group(2).strip()
+        elif current_sec and not l.startswith('CHAPTER') and not l.startswith('SECTIONS') and not l.isupper():
+            sec_titles[current_sec] += ' ' + l
+
+    # Filter out stray non-section entries and clean punctuation
+    sec_titles = {
+        k: re.sub(r'[\.\[\]]+$', '', v).strip()
+        for k, v in sec_titles.items()
+        if int(re.match(r'\d+', k).group()) <= 220
+    }
+
+    # 2. Extract substantive text from pages 8 to 99 (0-indexed 7 to 98)
+    full_text = ""
+    page_offsets = []
+
+    for pno in range(7, min(99, len(doc))):
+        page = doc[pno]
+        blocks = page.get_text("blocks")
+        page_text_blocks = []
+        for b in blocks:
+            txt = b[4].strip()
+            # Standalone page number
+            if txt.isdigit() and b[1] < 60:
+                continue
+            page_text_blocks.append(b[4])
+
+        page_offsets.append((pno + 1, len(full_text)))
+        full_text += "\n".join(page_text_blocks) + "\n"
+
+    # 3. Locate all sections
+    sec_positions = []
+    for s_num in sec_titles.keys():
+        pattern = rf'(?:^|\n)\s*(?:\[\d+\]|\d+\[)?\s*{re.escape(s_num)}\.\s*([A-Za-z\[][^\n]+)'
+        m = re.search(pattern, full_text)
+        if m:
+            sec_positions.append((s_num, m.start()))
+        else:
+            logger.warning(f"Could not locate Section {s_num} in MVA full text!")
+
+    sec_positions = sorted(sec_positions, key=lambda x: x[1])
+
+    today_str = datetime.date.today().isoformat()
+    extracted_records = []
+
+    for idx in range(len(sec_positions)):
+        sec_num_str, start_pos = sec_positions[idx]
+        end_pos = sec_positions[idx + 1][1] if idx + 1 < len(sec_positions) else len(full_text)
+
+        sec_text = full_text[start_pos:end_pos].strip()
+        # Clean chapter headings
+        sec_text = re.sub(r'\n\s*CHAPTER\s+[IVXLCDMA-Z0-9]+.*\n', '\n', sec_text)
+        # Clean footnote divider lines
+        sec_text = re.sub(r'\n\s*_{3,}\s*\n.*$', '', sec_text, flags=re.DOTALL).strip()
+        # Clean leading footnote bracket numbers e.g. 1[ or [1]
+        sec_text = re.sub(r'^\s*(?:\[\d+\]|\d+\[)\s*', '', sec_text)
+
+        title = sec_titles.get(sec_num_str, f"Section {sec_num_str}")
+
+        page_num = 8
+        for pno, poff in page_offsets:
+            if start_pos >= poff:
+                page_num = pno
+
+        extracted_records.append({
+            "id": f"MVA-1988-SECTION-{sec_num_str}",
+            "act": config["name"],
+            "act_key": "mva",
+            "act_name": config["name"],
+            "act_year": config["act_year"],
+            "category": config["category"],
+            "subcategory": config["subcategory"],
+            "section": f"Section {sec_num_str}",
+            "section_number": sec_num_str,
+            "title": title,
+            "content": sec_text,
+            "source": config["source"],
+            "source_url": source_url,
+            "document_type": "Act",
+            "page": page_num,
+            "language": "English",
+            "retrieved_date": today_str
+        })
+
+    logger.info(f"Extracted {len(extracted_records)} section records for {config['name']}.")
+    return extracted_records
+
+
+def extract_tpa_pdf(pdf_path: str, source_url: str, config: dict) -> list:
+    """
+    Extract section-wise legal content for Transfer of Property Act, 1882 (Act No. 4 of 1882).
+    Extracts all substantive sections from Section 1 to Section 137.
+    """
+    if not os.path.exists(pdf_path):
+        raise FileNotFoundError(f"PDF file not found at: {pdf_path}")
+
+    doc = fitz.open(pdf_path)
+    logger.info(f"Opened PDF '{pdf_path}' with {len(doc)} pages.")
+
+    # 1. Parse ARRANGEMENT OF SECTIONS from pages 1 to 6 (0-indexed 0 to 5)
+    arr_text = ""
+    for p in range(min(6, len(doc))):
+        arr_text += doc[p].get_text() + "\n"
+
+    lines = [l.strip() for l in arr_text.split('\n') if l.strip()]
+    sec_titles = {}
+    current_sec = None
+    for l in lines:
+        m = re.match(r'^(\d+[A-Z]?)\.\s*(.*)', l)
+        if m:
+            current_sec = m.group(1)
+            sec_titles[current_sec] = m.group(2).strip()
+        elif current_sec and not l.startswith('CHAPTER') and not l.startswith('SECTIONS') and not l.isupper():
+            sec_titles[current_sec] += ' ' + l
+
+    # Filter out non-section numbers and clean trailing periods and brackets
+    sec_titles = {
+        k: re.sub(r'[\.\[\]]+$', '', v).strip()
+        for k, v in sec_titles.items()
+        if int(re.match(r'\d+', k).group()) <= 137
+    }
+
+    # 2. Extract substantive text from pages 7 to 45 (0-indexed 6 to 44)
+    full_text = ""
+    page_offsets = []
+
+    for pno in range(6, min(45, len(doc))):
+        page = doc[pno]
+        blocks = page.get_text("blocks")
+        page_text_blocks = []
+        for b in blocks:
+            txt = b[4].strip()
+            # Standalone page number
+            if txt.isdigit() and b[1] < 60:
+                continue
+            page_text_blocks.append(b[4])
+
+        page_offsets.append((pno + 1, len(full_text)))
+        full_text += "\n".join(page_text_blocks) + "\n"
+
+    # 3. Locate all sections using title-aware matching to avoid footnote false positives
+    sec_positions = []
+    for s_num, s_title in sec_titles.items():
+        title_words = re.findall(r'[A-Za-z]+', s_title)
+        first_word = title_words[0] if title_words else ''
+        pat = rf'(?:^|\n)\s*(?:\d+\s*\[|\[\d+\]|\d+\[|\d+)?\s*{re.escape(s_num)}\.\s*(?:\[|\"|“)?\s*{re.escape(first_word)}'
+        m = re.search(pat, full_text, re.IGNORECASE)
+        if m:
+            sec_positions.append((s_num, m.start()))
+        else:
+            pat_fallback = rf'(?:^|\n)\s*(?:\d+\s*\[|\[\d+\]|\d+\[|\d+)?\s*{re.escape(s_num)}\.\s*([A-Za-z\[“\"\'].*)'
+            m2 = re.search(pat_fallback, full_text)
+            if m2:
+                sec_positions.append((s_num, m2.start()))
+            else:
+                logger.warning(f"Could not locate Section {s_num} in TPA full text!")
+
+    sec_positions = sorted(sec_positions, key=lambda x: x[1])
+
+    today_str = datetime.date.today().isoformat()
+    extracted_records = []
+
+    for idx in range(len(sec_positions)):
+        sec_num_str, start_pos = sec_positions[idx]
+        end_pos = sec_positions[idx + 1][1] if idx + 1 < len(sec_positions) else len(full_text)
+
+        sec_text = full_text[start_pos:end_pos].strip()
+        # Clean chapter headings
+        sec_text = re.sub(r'\n\s*CHAPTER\s+[IVXLCDMA-Z0-9]+.*\n', '\n', sec_text)
+        # Clean footnote divider lines
+        sec_text = re.sub(r'\n\s*_{3,}\s*\n.*$', '', sec_text, flags=re.DOTALL).strip()
+        # Clean leading footnote bracket numbers e.g. 1[ or 2 [
+        sec_text = re.sub(r'^\s*(?:\d+\s*\[|\[\d+\]|\d+\[)\s*', '', sec_text)
+
+        title = sec_titles.get(sec_num_str, f"Section {sec_num_str}")
+
+        page_num = 7
+        for pno, poff in page_offsets:
+            if start_pos >= poff:
+                page_num = pno
+
+        extracted_records.append({
+            "id": f"TPA-1882-SECTION-{sec_num_str}",
+            "act": config["name"],
+            "act_key": "tpa",
+            "act_name": config["name"],
+            "act_year": config["act_year"],
+            "category": config["category"],
+            "subcategory": config["subcategory"],
+            "section": f"Section {sec_num_str}",
+            "section_number": sec_num_str,
+            "title": title,
+            "content": sec_text,
+            "source": config["source"],
+            "source_url": source_url,
+            "document_type": "Act",
+            "page": page_num,
+            "language": "English",
+            "retrieved_date": today_str
+        })
+
+    logger.info(f"Extracted {len(extracted_records)} section records for {config['name']}.")
+    return extracted_records
+
+
+def extract_epa_pdf(pdf_path: str, source_url: str, config: dict) -> list:
+    """Extracts section records from Environment (Protection) Act, 1986 PDF."""
+    logger.info(f"Extracting EPA records from: {pdf_path}")
+    doc = fitz.open(pdf_path)
+
+    page_texts = []
+    for pno in range(1, len(doc)):
+        page_texts.append((pno + 1, doc[pno].get_text()))
+
+    full_text = ""
+    page_offsets = []
+    for pno, txt in page_texts:
+        page_offsets.append((pno, len(full_text)))
+        full_text += txt + "\n"
+
+    clean_text = re.sub(r'The Environment \(Protection\) Act, 1986\s*\n\s*\d+', '', full_text)
+    clean_text = re.sub(r'Act \d+ of \d+', '', clean_text)
+
+    sec_pattern = re.compile(r'(?:^|\n)\s*(\d+)\s*\.\s*([A-Z0-9\s,\-\(\)\/\.]+?)\s*[\.\-]+\s*\n', re.MULTILINE)
+    matches = list(sec_pattern.finditer(clean_text))
+
+    chapter_map = {
+        (1, 2): ("Chapter I", "Preliminary"),
+        (3, 6): ("Chapter II", "General Powers of the Central Government"),
+        (7, 17): ("Chapter III", "Prevention, Control and Abatement of Environmental Pollution"),
+        (18, 26): ("Chapter IV", "Miscellaneous")
+    }
+
+    records = []
+    today_str = datetime.date.today().isoformat()
+
+    for i, m in enumerate(matches):
+        sec_num = m.group(1)
+        raw_title = m.group(2).strip()
+        title = raw_title.replace('\n', ' ').strip()
+        title = re.sub(r'\s+', ' ', title).title()
+
+        start_pos = m.end()
+        end_pos = matches[i + 1].start() if i + 1 < len(matches) else len(clean_text)
+        content = clean_text[start_pos:end_pos].strip()
+        content = re.sub(r'\n\s*CHAPTER\s+[IVXLCDM]+.*?\n', '\n', content)
+        content = re.sub(r'\n\s*_{3,}.*$', '', content, flags=re.DOTALL).strip()
+
+        s_int = int(sec_num)
+        ch_num, ch_title = "", ""
+        for (s_start, s_end), (cnum, ctitle) in chapter_map.items():
+            if s_start <= s_int <= s_end:
+                ch_num = cnum
+                ch_title = ctitle
+                break
+
+        page_num = 2
+        for pno, poff in page_offsets:
+            if m.start() >= poff:
+                page_num = pno
+
+        records.append({
+            "id": f"EPA-1986-SECTION-{sec_num}",
+            "act": config["name"],
+            "act_key": "epa",
+            "act_name": config["name"],
+            "act_year": config["act_year"],
+            "category": config["category"],
+            "subcategory": config["subcategory"],
+            "chapter": f"{ch_num}: {ch_title}" if ch_num else "",
+            "section": f"Section {sec_num}",
+            "section_number": sec_num,
+            "title": title,
+            "content": f"{sec_num}. {title}.— {content}",
+            "source": config["source"],
+            "source_url": source_url,
+            "document_type": "Act",
+            "page": page_num,
+            "language": "English",
+            "retrieved_date": today_str
+        })
+
+    logger.info(f"Extracted {len(records)} sections for EPA 1986.")
+    return records
+
+
 def main():
     parser = argparse.ArgumentParser(description="Legal Data Extraction Script")
-    parser.add_argument("--act", type=str, default="bns", choices=["bns", "bnss", "bsa", "cpa", "css", "pwdva"], help="Act key to extract (default: bns)")
+    parser.add_argument("--act", type=str, default="bns", choices=["bns", "bnss", "bsa", "cpa", "css", "pwdva", "rti", "lsa", "hma", "posh", "mva", "tpa", "epa"], help="Act key to extract (default: bns)")
     parser.add_argument("--pdf", type=str, help="Path to input PDF file")
     parser.add_argument("--output", type=str, help="Path to output JSON file")
     parser.add_argument("--download", action="store_true", help="Download raw PDF if not present")
@@ -398,6 +1179,83 @@ def main():
             "source": "India Code",
             "act_year": "2005",
         },
+        "rti": {
+            "pdf": "data/raw/rti/rti_2005.pdf",
+            "output": "data/raw/rti/rti_sections.json",
+            "url": "https://cic.gov.in/sites/default/files/RTI-Act_English.pdf",
+            "max_sections": 31,
+            "name": "Right to Information Act, 2005",
+            "category": "RTI",
+            "subcategory": "Public Information",
+            "source": "Central Information Commission / Ministry of Law and Justice",
+            "act_year": "2005",
+        },
+        "lsa": {
+            "pdf": "data/raw/legal_aid/lsa_1987.pdf",
+            "output": "data/raw/legal_aid/lsa_sections.json",
+            "url": "https://cdnbbsr.s3waas.gov.in/s32e45f93088c7db59767efef516b306aa/uploads/2025/04/202504081796627129.pdf",
+            "max_sections": 40,
+            "name": "Legal Services Authorities Act, 1987",
+            "category": "Legal Aid",
+            "subcategory": "Access to Justice",
+            "source": "NALSA / India Code",
+            "act_year": "1987",
+        },
+        "hma": {
+            "pdf": "data/raw/family/hma_1955.pdf",
+            "output": "data/raw/family/hma_sections.json",
+            "url": "https://dms.hp.gov.in/ViewPDF.aspx?fn=cbOUjYHu1Pa%2B8vT2R7dS7%2FIPmvhAVQbTjec%2BSrQU%2BLJLVjJKYoaqeZw7yhodAnTv&ot=2LiD6ggCMIp9mzvYCQJmrg%3D%3D",
+            "max_sections": 37,
+            "name": "Hindu Marriage Act, 1955",
+            "category": "Family Laws",
+            "subcategory": "Personal Law",
+            "source": "Legislative Department / India Code",
+            "act_year": "1955",
+        },
+        "posh": {
+            "pdf": "data/raw/womens_rights/posh_2013.pdf",
+            "output": "data/raw/womens_rights/posh_sections.json",
+            "url": "https://kwa.kerala.gov.in/wp-content/uploads/2023/08/THE-SEXUAL-HARASSMENT-OF-WOMEN-AT-WORKPLACE.pdf",
+            "max_sections": 30,
+            "name": "Sexual Harassment of Women at Workplace Act, 2013",
+            "category": "Women's Rights",
+            "subcategory": "Workplace Safety",
+            "source": "The Gazette of India / Ministry of Law and Justice",
+            "act_year": "2013",
+        },
+        "mva": {
+            "pdf": "data/raw/traffic/mva_1988.pdf",
+            "output": "data/raw/traffic/mva_sections.json",
+            "url": "https://www.indiacode.nic.in/bitstream/123456789/9460/1/a1988-59.pdf",
+            "max_sections": 223,
+            "name": "Motor Vehicles Act, 1988",
+            "category": "Traffic Laws",
+            "subcategory": "Road & Traffic Law",
+            "source": "India Code / Ministry of Road Transport and Highways",
+            "act_year": "1988",
+        },
+        "tpa": {
+            "pdf": "data/raw/property/tpa_1882.pdf",
+            "output": "data/raw/property/tpa_sections.json",
+            "url": "https://www.indiacode.nic.in/bitstream/123456789/2338/1/A1882-04.pdf",
+            "max_sections": 148,
+            "name": "Transfer of Property Act, 1882",
+            "category": "Property Laws",
+            "subcategory": "Property Rights",
+            "source": "India Code / Legislative Department",
+            "act_year": "1882",
+        },
+        "epa": {
+            "pdf": "data/raw/environment/ep_act_1986.pdf",
+            "output": "data/raw/environment/epa_sections.json",
+            "url": "https://www.indiacode.nic.in/bitstream/123456789/4316/1/ep_act_1986.pdf",
+            "max_sections": 26,
+            "name": "Environment (Protection) Act, 1986",
+            "category": "Environmental Laws",
+            "subcategory": "Environmental Protection",
+            "source": "India Code / Ministry of Environment, Forest and Climate Change",
+            "act_year": "1986",
+        },
     }
     config = act_configs[args.act]
     pdf_path = args.pdf or config["pdf"]
@@ -411,6 +1269,20 @@ def main():
 
     if args.act == "pwdva":
         records = extract_pwdva_pdf(pdf_path, source_url=config["url"], config=config)
+    elif args.act == "rti":
+        records = extract_rti_pdf(pdf_path, source_url=config["url"], config=config)
+    elif args.act == "lsa":
+        records = extract_lsa_pdf(pdf_path, source_url=config["url"], config=config)
+    elif args.act == "hma":
+        records = extract_hma_pdf(pdf_path, source_url=config["url"], config=config)
+    elif args.act == "posh":
+        records = extract_posh_pdf(pdf_path, source_url=config["url"], config=config)
+    elif args.act == "mva":
+        records = extract_mva_pdf(pdf_path, source_url=config["url"], config=config)
+    elif args.act == "tpa":
+        records = extract_tpa_pdf(pdf_path, source_url=config["url"], config=config)
+    elif args.act == "epa":
+        records = extract_epa_pdf(pdf_path, source_url=config["url"], config=config)
     else:
         records = extract_bns_pdf(
             pdf_path,

@@ -17,23 +17,32 @@ NAV_ITEMS = [
 ]
 
 
+@st.cache_data
+def get_cached_css() -> str:
+    return STYLE_PATH.read_text(encoding="utf-8")
+
+
 def load_css() -> None:
-    css = STYLE_PATH.read_text(encoding="utf-8")
+    css = get_cached_css()
     st.markdown(f"<style>{css}</style>", unsafe_allow_html=True)
 
 
 def current_page() -> str:
-    page = st.query_params.get("page", "home")
-    if page not in {"home", "chat", "resources", "categories", "about"}:
-        return "home"
-    return page
+    url_page = st.query_params.get("page")
+    if url_page and url_page in {"home", "chat", "resources", "categories", "about"}:
+        st.session_state["page"] = url_page
+    elif "page" not in st.session_state:
+        st.session_state["page"] = "home"
+    return st.session_state["page"]
 
 
 def goto(page: str, **params) -> None:
+    st.session_state["page"] = page
     next_params = {"page": page}
     for key, value in params.items():
         if value is not None and value != "":
             next_params[key] = value
+            st.session_state[key] = value
     st.query_params.clear()
     st.query_params.update(next_params)
     st.rerun()
@@ -61,25 +70,24 @@ def render_emergency() -> None:
 
 
 def render_header(active: str) -> None:
-    links = []
-    for key, label in NAV_ITEMS:
-        nav_active = "active" if active == key else ""
-        links.append(
-            f'<a target="_self" class="{nav_active}" href="?page={key}">{label}</a>'
+    with st.container(key="lc_header_container"):
+        col_logo, col_links, col_start = st.columns(
+            [0.22, 0.58, 0.20], vertical_alignment="center"
         )
-
-    start_class = (
-        "lc-btn-start solid" if active in {"categories", "chat"} else "lc-btn-start"
-    )
-
-    html = f"""
-    <div class="lc-header">
-      <a target="_self" class="lc-logo" href="?page=home">Legal Connect</a>
-      <nav class="lc-nav-links">{''.join(links)}</nav>
-      <a target="_self" class="{start_class}" href="?page=chat">Start Chat</a>
-    </div>
-    """
-    st.markdown(html, unsafe_allow_html=True)
+        with col_logo:
+            if st.button("Legal Connect", key="nav_btn_logo", use_container_width=False):
+                goto("home")
+        with col_links:
+            n_cols = st.columns(len(NAV_ITEMS))
+            for idx, (key, label) in enumerate(NAV_ITEMS):
+                with n_cols[idx]:
+                    is_active = active == key
+                    btn_type = "primary" if is_active else "secondary"
+                    if st.button(label, key=f"nav_btn_{key}", type=btn_type, use_container_width=True):
+                        goto(key)
+        with col_start:
+            if st.button("Start Chat", key="nav_btn_start", type="primary", use_container_width=True):
+                goto("chat")
 
 
 def render_awareness_bar() -> None:

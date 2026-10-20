@@ -1,141 +1,190 @@
-# Indian Legal Awareness Chatbot - Data Pipeline
+---
+title: LegalConnect
+emoji: ⚖️
+colorFrom: blue
+colorTo: indigo
+sdk: docker
+app_port: 8000
+pinned: false
+---
 
-A modular, reusable, and category-agnostic legal data extraction, cleaning, and chunking pipeline for official Indian legal content across 13 categories.
+# LegalConnect — AI-Powered Indian Legal Awareness System
+
+LegalConnect is an AI-powered, citizen-focused Indian legal awareness and RAG (Retrieval-Augmented Generation) system. It pairs dense vector retrieval over ChromaDB with localized Ollama inference (`qwen3:4b`), providing grounded legal explanations, statutory citations, constitutional article lookups, and government welfare scheme information.
 
 ---
 
-## 1. Pipeline Overview
-The data preparation framework consists of three sequential stages:
-1. **Stage 1 — Legal Data Extraction**: Downloads official `.pdf`/`.html` files from government portals (`.gov.in` / `.nic.in`) and extracts section-level JSON records.
-2. **Stage 2 — Universal Legal Data Cleaning**: Normalizes whitespace, removes extraction artifacts, flags data quality anomalies, and saves clean JSON records and quality reports into `data/processed/`.
-3. **Stage 3 — Legal-Aware Chunking & Data Preparation**: Splits cleaned legal documents into retrieval-ready chunks while strictly prioritizing legal boundaries over arbitrary character counts.
+## 1. System Architecture & Knowledge Base
 
-> [!IMPORTANT]
-> Legal text is **never invented, summarized, paraphrased, or modified**. Exact legal wording, punctuation, and structure are strictly preserved throughout all stages.
+### 1.1 Complete Legal Knowledge Base (3,209 Chunks)
+LegalConnect indexes **16 distinct legal sources** spanning statutory enactments, constitutional law, and national welfare schemes:
+
+1. **The Constitution of India** (Preamble + Articles 1 to 395, up to 106th Amendment Act, 2023) — *578 chunks*
+2. **Bharatiya Nyaya Sanhita, 2023 (BNS)** — *430 chunks*
+3. **Bharatiya Nagarik Suraksha Sanhita, 2023 (BNSS)** — *679 chunks*
+4. **Bharatiya Sakshya Adhiniyam, 2023 (BSA)** — *192 chunks*
+5. **Consumer Protection Act, 2019 (CPA)** — *134 chunks*
+6. **Information Technology Act, 2000 (IT Act)** — *131 chunks*
+7. **Protection of Women from Domestic Violence Act, 2005 (PWDVA)** — *46 chunks*
+8. **Sexual Harassment of Women at Workplace Act, 2013 (POSH)** — *43 chunks*
+9. **Code on Social Security, 2020** — *248 chunks*
+10. **Hindu Marriage Act, 1955** — *39 chunks*
+11. **Motor Vehicles Act, 1988 (MVA)** — *321 chunks*
+12. **Transfer of Property Act, 1882 (TPA)** — *177 chunks*
+13. **Right to Information Act, 2005 (RTI)** — *47 chunks*
+14. **Legal Services Authorities Act, 1987 (LSA)** — *43 chunks*
+15. **Environment (Protection) Act, 1986 (EPA)** — *33 chunks*
+16. **National Government Welfare Schemes (myScheme)** — *7 chunks*
+    - *Pradhan Mantri Kisan Samman Nidhi (PM-KISAN)*
+    - *Ayushman Bharat - Pradhan Mantri Jan Arogya Yojana (AB-PMJAY)*
+    - *Pradhan Mantri Awas Yojana (PMAY - Urban & Gramin)*
+    - *Sukanya Samriddhi Account / Sukanya Samriddhi Yojana (SSY)*
+
+### 1.2 RAG Engine Specifications
+- **Vector Database**: Local Persistent ChromaDB (`vectorstore/chroma`, collection: `legal_bns_2023`)
+- **Embedding Model**: `sentence-transformers/all-MiniLM-L6-v2` (384 dimensions, cosine distance)
+- **Local LLM**: Local Ollama running `qwen3:4b` (262k context length, GGUF Q4_K_M)
+- **Retrieval Pipeline**: Hybrid metadata boosting (explicit Act/Section/Article matching), typo correction, semantic re-ranking, and diversity de-duplication.
+- **Citation Guardrails**: Runtime citation whitelist filtering and streaming token-boundary verification to prevent legal hallucination.
 
 ---
 
-## 2. Stage 3 — Legal-Aware Chunking & Data Preparation
-
-### Why Legal Documents Are Not Blindly Split
-Standard fixed-character chunking (e.g. 500 or 1000 characters) frequently cuts off legal definitions, penal clauses, or exception conditions mid-sentence. In legal retrieval systems, preserving the **entire legal section or subsection** as a cohesive semantic unit is paramount to maintaining legal meaning and providing accurate citations.
-
-### Chunking Principles
-- **Legal Structure Priority**: Splitting respects legal hierarchy: `Act` $\rightarrow$ `Chapter` $\rightarrow$ `Section` $\rightarrow$ `Subsection` $\rightarrow$ `Clause`.
-- **Intact Sections**: Sections within guideline limits (`TARGET_CHUNK_SIZE = 1200`, `MAX_CHUNK_SIZE = 1800`) are preserved as single intact chunks.
-- **Subsection-Aware Splitting**: Extremely long sections (e.g. Section 2 definitions) are split at subsection (`(1)`, `(2)`), sub-clause (`(a)`, `(b)`), or paragraph boundaries.
-- **Metadata Preservation**: Every chunk retains full context (`act`, `category`, `subcategory`, `chapter`, `section`, `section_number`, `title`, `subsection`, `source`, `source_url`, `document_type`, `page`).
-- **Parent-Child Traceability**: Every chunk contains `parent_record_id` pointing directly to its parent record in `data/processed/`, allowing 100% trace-back from vector chunks to raw source documents.
-- **Content Reconstruction Validation**: The pipeline includes an automated test (`validate_chunks.py`) that reconstructs 100% of original cleaned text from generated chunks to guarantee zero loss of text.
-
----
-
-## 3. Directory Layout & Storage
+## 2. Directory Structure
 
 ```
-legal-awareness-chatbot/
-│
+LegalConnect/
+├── backend/
+│   └── main.py                        # FastAPI application with CORS & health checks
+├── frontend/
+│   ├── app.py                         # Streamlit UI application
+│   ├── api_client.py                  # Environment-aware backend API client
+│   ├── chrome.py                      # UI sidebar & navigation components
+│   ├── views.py                       # Chat and citation render views
+│   └── styles.css                     # Premium styling
 ├── data/
-│   ├── raw/                           <-- SOURCE OF TRUTH (READ-ONLY)
-│   │   └── criminal/
-│   │       └── bns/
-│   │           ├── bns_2023.pdf
-│   │           └── bns_sections.json
-│   │
-│   ├── processed/                     <-- CLEANED DATA & REPORTS
-│   │   └── criminal/
-│   │       └── bns/
-│   │           ├── bns_cleaned.json
-│   │           └── bns_cleaning_report.json
-│   │
-│   ├── processed_chunks/              <-- RETRIEVAL-READY CHUNKS & REPORTS
-│   │   └── criminal/
-│   │       └── bns/
-│   │           ├── bns_chunks.json
-│   │           └── bns_chunking_report.json
-│   │
+│   ├── raw/                           # Official source PDF & raw extracted JSON
+│   ├── processed/                     # Cleaned JSON datasets & quality reports
+│   ├── processed_chunks/              # Validated chunks & chunking reports
 │   └── metadata/
-│       └── sources.json
-│
+│       └── sources.json               # Canonical source registry & tracking
+├── reports/                           # Automated RAG evaluation & audit reports
 ├── scripts/
-│   ├── extract_data.py
-│   ├── clean_data.py
-│   ├── chunk_data.py
-│   ├── validate_data.py
-│   └── validate_chunks.py
-│
-├── requirements.txt
+│   ├── extract_data.py                # Source extraction pipeline
+│   ├── clean_data.py                  # Universal legal text cleaning engine
+│   ├── chunk_data.py                  # Legal-aware structural chunking engine
+│   ├── validate_chunks.py             # 100% Content Reconstruction validator
+│   ├── create_embeddings.py           # Incremental ChromaDB embedding engine
+│   ├── retrieval_utils.py             # Query normalization, boosting & reranking
+│   ├── legal_chat.py                  # Prompt engineering & LLM streaming
+│   ├── evaluate_rag.py                # RAG evaluation engine (Hit@k, MRR)
+│   └── evaluation/
+│       ├── legal_test_cases.json      # 60 verified statutory benchmark cases
+│       ├── legal_test_cases_extended.json # 70 verified benchmark cases
+│       ├── test_citations.py          # Citation unit tests
+│       └── test_regression.py         # Failure regression & robustness test suite
+├── Dockerfile                         # Production multi-stage Docker container
+├── docker-compose.yml                 # Multi-service composition (Backend + Frontend)
+├── .env.example                       # Environment template
+├── requirements.txt                   # Production Python dependencies
 └── README.md
 ```
 
 ---
 
-## 4. Chunk JSON Schema
+## 3. Quick Start & Execution
 
-```json
-{
-    "chunk_id": "BNS-2023-SECTION-103-CHUNK-1",
-    "act": "Bharatiya Nyaya Sanhita, 2023",
-    "category": "Criminal Laws",
-    "subcategory": "Criminal Law",
-    "chapter": "",
-    "section": "Section 103",
-    "section_number": "103",
-    "title": "Punishment for murder",
-    "subsection": "(1)",
-    "content": "103. (1) Whoever commits murder shall be punished with death or imprisonment for life, and shall also be liable to fine. ...",
-    "source": "India Code / BPRD",
-    "source_url": "https://bprd.nic.in/uploads/pdf/1706692028_eeccb6a2701f4c13ac9b.pdf",
-    "document_type": "Act",
-    "page": 33,
-    "language": "English",
-    "parent_record_id": "BNS-2023-SECTION-103",
-    "chunk_index": 1,
-    "total_chunks_for_section": 1
-}
+### 3.1 Local Environment Setup
+```bash
+# 1. Clone repository and navigate to directory
+cd LegalConnect
+
+# 2. Activate Python 3.10 virtual environment
+python3 -m venv .venv
+source .venv/bin/activate
+
+# 3. Install dependencies
+pip install -r requirements.txt
+
+# 4. Copy environment configuration
+cp .env.example .env
 ```
+
+### 3.2 Starting Local Services
+```bash
+# Terminal 1: Ensure Ollama is running with qwen3:4b
+ollama serve
+ollama pull qwen3:4b
+
+# Terminal 2: Start FastAPI Backend
+uvicorn backend.main:app --host 127.0.0.1 --port 8000
+
+# Terminal 3: Start Streamlit Frontend
+streamlit run frontend/app.py --server.port 8501
+```
+
+Access the web interface at: `http://localhost:8501`
+Access the backend OpenAPI docs at: `http://localhost:8000/docs`
+Backend health status: `http://localhost:8000/health`
 
 ---
 
-## 5. Pipeline Commands
+## 4. Docker Deployment
 
-### Stage 1: Extraction
+LegalConnect provides full Docker support with volume persistence:
+
 ```bash
-python3 scripts/extract_data.py --act bns
+# Build and run backend and frontend services
+docker-compose up --build
 ```
 
-### Stage 2: Universal Cleaning
-```bash
-# Single File
-python3 scripts/clean_data.py \
-    --input data/raw/criminal/bns/bns_sections.json \
-    --output data/processed/criminal/bns/bns_cleaned.json
-
-# Batch Directory
-python3 scripts/clean_data.py --input-dir data/raw/ --output-dir data/processed/
-```
-
-### Stage 3: Legal-Aware Chunking
-```bash
-# Single File
-python3 scripts/chunk_data.py \
-    --input data/processed/criminal/bns/bns_cleaned.json \
-    --output data/processed_chunks/criminal/bns/bns_chunks.json
-
-# Batch Directory
-python3 scripts/chunk_data.py --input-dir data/processed/ --output-dir data/processed_chunks/
-```
-
-### Chunk Validation & Content Reconstruction Test
-```bash
-python3 scripts/validate_chunks.py \
-    --file data/processed_chunks/criminal/bns/bns_chunks.json \
-    --source-file data/processed/criminal/bns/bns_cleaned.json
-```
+> **Note on Ollama in Docker:**
+> When running the backend container, it connects to host Ollama via `http://host.docker.internal:11434` (pre-configured in `docker-compose.yml`). Ensure Ollama on the host allows requests or run `OLLAMA_HOST=0.0.0.0:11434 ollama serve`.
 
 ---
 
-## 6. Current Implementation Disclaimer
+## 5. RAG Evaluation & Regression Benchmark
 
-> [!NOTE]
-> Embeddings, ChromaDB, vector database, retrieval, semantic search, FastAPI, LLM integration, chatbot UI, and deployment have **NOT** yet been implemented.
+### 5.1 Verification Commands
+All test suites can be executed with `.venv/bin/python`:
+
+```bash
+# 1. Run Baseline Retrieval Evaluation (60 Test Cases)
+python3 scripts/evaluate_rag.py --retrieval-only
+
+# 2. Run Extended Cross-Domain Evaluation (70 Test Cases: Acts + Constitution + Schemes)
+python3 scripts/evaluate_rag.py \
+    --dataset scripts/evaluation/legal_test_cases_extended.json \
+    --report reports/rag_evaluation_extended_70.json \
+    --retrieval-only
+
+# 3. Run Citation Grounding & Filter Safety Tests
+python3 -m unittest scripts/evaluation/test_citations.py
+
+# 4. Run System Regression & Vectorstore Integrity Tests
+python3 scripts/evaluation/test_regression.py
+```
+
+### 5.2 Latest Verified Benchmark Metrics
+
+| Metric | Baseline Suite (60 Cases) | Extended Suite (70 Cases) | Status |
+| :--- | :--- | :--- | :--- |
+| **Total Test Cases** | 60 | 70 | Verified |
+| **Overall Pass Rate** | **100.0%** | **100.0%** | Passed |
+| **Hit@1** | **100.0%** | **100.0%** | Top-rank accuracy |
+| **Hit@3** | **100.0%** | **100.0%** | Top-3 recall |
+| **Hit@5** | **100.0%** | **100.0%** | Top-5 recall |
+| **MRR (Mean Reciprocal Rank)** | **1.0000** | **1.0000** | Perfect reciprocal rank |
+| **Expected Act Accuracy** | **100.0%** | **100.0%** | Zero cross-statute confusion |
+| **Expected Section Accuracy** | **95.0%** | **95.71%** | Ground truth match* |
+| **Citation Unit Tests** | **8/8 Passed** | **8/8 Passed** | Zero hallucinations |
+| **Regression Tests** | **10/10 Passed** | **10/10 Passed** | Zero regressions |
+
+*\* Note: The remaining ~4.3% in Expected Section Accuracy represents intentional non-statutory / `insufficient_context` test cases where `expected_sections = []`.*
+
+---
+
+## 6. Security & Safe Legal AI Principles
+
+1. **Non-Destructive Ingestion Safeguards**: Incremental upserts and strict ID validation protect existing vectors from loss or unnecessary re-embedding.
+2. **Statutory Citations Whitelist**: The assistant is strictly constrained to cite only sections and articles present in retrieved chunks. Any unsupported section numbers are automatically qualified before user presentation.
+3. **Legal Disclaimer**: LegalConnect is designed solely for public legal awareness and information retrieval. It does not provide formal legal advice and is not a substitute for a licensed advocate or judicial authority.

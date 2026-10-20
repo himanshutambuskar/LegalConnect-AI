@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import os
+import json
 import requests
 
-API_BASE_URL = "http://127.0.0.1:8000"
+API_BASE_URL = os.environ.get("BACKEND_API_URL", "http://127.0.0.1:8000").rstrip("/")
 ASK_ENDPOINT = f"{API_BASE_URL}/ask"
+ASK_STREAM_ENDPOINT = f"{API_BASE_URL}/ask/stream"
 HEALTH_ENDPOINT = f"{API_BASE_URL}/health"
 TIMEOUT_SECONDS = 180
 
@@ -27,7 +30,7 @@ def check_health(timeout: float = 3.0) -> dict:
         }
 
 
-def ask_question(question: str) -> dict:
+def ask_question(question: str, history: list[dict] | None = None) -> dict:
     """POST a question to /ask. Returns a normalized result dict (never raises)."""
     clean_query = (question or "").strip()
     if not clean_query:
@@ -41,7 +44,7 @@ def ask_question(question: str) -> dict:
     try:
         response = requests.post(
             ASK_ENDPOINT,
-            json={"question": clean_query},
+            json={"question": clean_query, "history": history or []},
             timeout=TIMEOUT_SECONDS,
         )
 
@@ -81,9 +84,27 @@ def ask_question(question: str) -> dict:
                 "sources": [],
             }
 
+        if response.status_code in (500, 502, 503, 504):
+            try:
+                detail = response.json().get("detail", "")
+            except Exception:
+                detail = ""
+            if detail and not any(t in detail.lower() for t in ["httpconnection", "traceback", "errno"]):
+                err_msg = detail
+            elif response.status_code == 503 or "ollama" in detail.lower():
+                err_msg = "LegalConnect could not connect to the local AI service. Please make sure Ollama is running."
+            else:
+                err_msg = "I couldn't generate a response right now. Please try again."
+            return {
+                "ok": False,
+                "error": err_msg,
+                "answer": None,
+                "sources": [],
+            }
+
         return {
             "ok": False,
-            "error": "The legal assistant ran into a server problem. Please try again in a moment.",
+            "error": "I couldn't generate a response right now. Please try again.",
             "answer": None,
             "sources": [],
         }
@@ -91,10 +112,7 @@ def ask_question(question: str) -> dict:
     except requests.exceptions.Timeout:
         return {
             "ok": False,
-            "error": (
-                f"The request timed out after {TIMEOUT_SECONDS} seconds. "
-                "Please try a shorter question or try again shortly."
-            ),
+            "error": "The request timed out. Please try a shorter question or try again shortly.",
             "answer": None,
             "sources": [],
         }
@@ -108,7 +126,67 @@ def ask_question(question: str) -> dict:
     except Exception:
         return {
             "ok": False,
-            "error": "Something went wrong while reaching the legal assistant. Please try again.",
+            "error": "I couldn't generate a response right now. Please try again.",
             "answer": None,
             "sources": [],
         }
+
+
+def ask_question_stream(question: str, history: list[dict] | None = None):
+    """
+    POST a question to /ask/stream. Yields events:
+    {"type": "meta", "is_confident": bool, "sources": list}
+    {"type": "token", "token": str}
+    {"type": "error", "error": str}
+    """
+    clean_query = (question or "").strip()
+    if not clean_query:
+        yield {"type": "error", "error": "Please enter a legal question before sending."}
+        return
+
+    try:
+        response = requests.post(
+            ASK_STREAM_ENDPOINT,
+            json={"question": clean_query, "history": history or []},
+            stream=True,
+            timeout=TIMEOUT_SECONDS,
+        )
+
+        if response.status_code != 200:
+            try:
+                err_data = response.json()
+                detail = err_data.get("detail", "")
+            except Exception:
+                detail = ""
+            if detail and not any(t in detail.lower() for t in ["httpconnection", "traceback", "errno"]):
+                yield {"type": "error", "error": detail}
+            elif response.status_code == 503 or "ollama" in detail.lower():
+                yield {
+                    "type": "error",
+                    "error": "LegalConnect could not connect to the local AI service. Please make sure Ollama is running.",
+                }
+            else:
+                yield {"type": "error", "error": "I couldn't generate a response right now. Please try again."}
+            return
+
+        for line in response.iter_lines():
+            if not line:
+                continue
+            try:
+                event = json.loads(line.decode("utf-8"))
+                yield event
+            except Exception:
+                continue
+
+    except requests.exceptions.Timeout:
+        yield {
+            "type": "error",
+            "error": "The request timed out. Please try again.",
+        }
+    except requests.exceptions.ConnectionError:
+        yield {
+            "type": "error",
+            "error": "LegalConnect backend is currently unavailable. Please make sure the FastAPI server is running.",
+        }
+    except Exception:
+        yield {"type": "error", "error": "I couldn't generate a response right now. Please try again."}

@@ -116,7 +116,14 @@ def ingest_chunks_to_chroma(
         name=collection_name,
         metadata={"hnsw:space": "cosine"}
     )
-    logger.info(f"Connected to ChromaDB collection '{collection_name}' at '{persist_dir}'.")
+    initial_count = collection.count()
+    logger.info(f"Connected to ChromaDB collection '{collection_name}' at '{persist_dir}'. Current count before ingestion: {initial_count}")
+
+    # Check for existing chunk IDs
+    incoming_ids = [c["chunk_id"] for c in valid_chunks]
+    existing_chunks = collection.get(ids=incoming_ids)
+    existing_ids = set(existing_chunks["ids"]) if existing_chunks and "ids" in existing_chunks else set()
+    logger.info(f"Of {len(valid_chunks)} chunks, {len(existing_ids)} already exist in collection, {len(valid_chunks) - len(existing_ids)} new chunks will be added.")
 
     # Ingest in Batches
     logger.info(f"Ingesting {len(valid_chunks)} chunks in batches of {batch_size}...")
@@ -143,13 +150,14 @@ def ingest_chunks_to_chroma(
 
     # Post-Ingestion Verification
     stored_document_count = collection.count()
-    logger.info(f"ChromaDB Ingestion Complete. Total documents in collection '{collection_name}': {stored_document_count}")
+    expected_final_count = initial_count + (len(valid_chunks) - len(existing_ids))
+    logger.info(f"ChromaDB Ingestion Complete. Total documents in collection '{collection_name}': {stored_document_count} (Initial: {initial_count}, Net Added: {stored_document_count - initial_count})")
 
-    if stored_document_count != source_chunk_count:
-        logger.warning(f"Mismatch: Source chunks ({source_chunk_count}) != Stored documents ({stored_document_count})")
+    if failed_records > 0 or stored_document_count != expected_final_count:
+        logger.warning(f"Mismatch: Expected final count ({expected_final_count}) != Stored documents ({stored_document_count})")
         status = "warning"
     else:
-        logger.info("Integrity Verification Passed: Stored document count perfectly matches source chunk count!")
+        logger.info("Integrity Verification Passed: Stored document count perfectly matches expected count!")
         status = "passed"
 
     report = {
@@ -157,6 +165,8 @@ def ingest_chunks_to_chroma(
         "collection": collection_name,
         "embedding_model": model_name,
         "source_chunks": source_chunk_count,
+        "initial_count": initial_count,
+        "new_chunks_added": stored_document_count - initial_count,
         "stored_documents": stored_document_count,
         "embedding_dimension": embedding_dim,
         "batch_size": batch_size,

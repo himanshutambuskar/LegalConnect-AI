@@ -8,8 +8,13 @@ from datetime import datetime
 
 import streamlit as st
 
-from api_client import ask_question
+from api_client import ask_question, ask_question_stream
 from chrome import chat_link, goto, render_footer
+
+try:
+    from citation_utils import extract_allowed_section_numbers, sanitize_unsupported_citations
+except ImportError:
+    from frontend.citation_utils import extract_allowed_section_numbers, sanitize_unsupported_citations
 from content import (
     CATEGORIES,
     CHAT_SIDEBAR_CATEGORIES,
@@ -57,6 +62,7 @@ def init_session() -> None:
 
 def clean_model_answer(text: str) -> str:
     cleaned = re.sub(r"<think>.*?</think>", "", text or "", flags=re.S | re.I)
+    cleaned = re.sub(r"<think>.*$", "", cleaned, flags=re.S | re.I)
     cleaned = re.sub(r"</?think>", "", cleaned, flags=re.I)
     return cleaned.strip()
 
@@ -65,6 +71,7 @@ def answer_to_html(text: str) -> str:
     escaped = html.escape(text)
     escaped = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", escaped)
     escaped = re.sub(r"`([^`]+)`", r"<code>\1</code>", escaped)
+    escaped = re.sub(r"(?<!\*)\*(?!\s)([^*\n]+?)(?<!\s)\*(?!\*)", r"<em>\1</em>", escaped)
     lines = escaped.splitlines()
     parts: list[str] = []
     list_type = None
@@ -97,7 +104,18 @@ def answer_to_html(text: str) -> str:
             parts.append(f"<li>{bullet.group(1)}</li>")
         elif heading:
             close_list()
-            parts.append(f"<h4>{heading.group(1)}</h4>")
+            h_text = heading.group(1).strip()
+            h_lower = h_text.lower()
+            badge_class = "lc-section-header"
+            if "what this means" in h_lower:
+                badge_class += " lc-sec-means"
+            elif "what the law says" in h_lower:
+                badge_class += " lc-sec-law"
+            elif "what you can" in h_lower or "consider doing" in h_lower:
+                badge_class += " lc-sec-actions"
+            elif "important" in h_lower:
+                badge_class += " lc-sec-important"
+            parts.append(f'<h4 class="{badge_class}">{h_text}</h4>')
         else:
             close_list()
             parts.append(f"<p>{line}</p>")
@@ -108,28 +126,71 @@ def answer_to_html(text: str) -> str:
 def split_heading(answer: str) -> tuple[str, str]:
     text = clean_model_answer(answer)
     if not text:
-        return "Legal Awareness Answer", ""
+        return "Legal Awareness Guidance", ""
     lines = [ln.rstrip() for ln in text.splitlines()]
     first = lines[0].strip()
-    first = re.sub(r"^#+\s*", "", first).strip("*_ ")
-    if 8 <= len(first) <= 110 and not first.startswith(("-", "*", "1.")):
-        rest = "\n".join(lines[1:]).strip()
-        return first, rest or text
+    m = re.match(r"^#+\s*(.+)$", first)
+    if m:
+        h = m.group(1).strip("*_ ")
+        h_lower = h.lower()
+        if not any(h_lower.startswith(sec) for sec in ["what this means", "what the law says", "what you can", "consider doing", "important", "legal awareness"]):
+            rest = "\n".join(lines[1:]).strip()
+            return h, rest or text
     return "Legal Awareness Guidance", text
 
 
-def format_source_label(source: dict) -> str:
-    act = (source.get("act") or "").strip() or "Official Legal Source"
-    section = source.get("section")
-    title = (source.get("title") or "").strip()
-    if section not in (None, "", "N/A"):
-        sec_str = str(section).strip()
-        if not sec_str.lower().startswith("section"):
+def render_sources_section(sources: list) -> str:
+    if not sources:
+        return ""
+
+    cards = []
+    seen = set()
+    for s in sources:
+        if not isinstance(s, dict):
+            continue
+        act = (s.get("act") or "").strip()
+        sec = s.get("section") or s.get("section_number") or ""
+        title = (s.get("title") or "").strip()
+        source_name = (s.get("source") or "").strip()
+        url = (s.get("source_url") or "").strip()
+
+        sec_str = str(sec).strip()
+        if sec_str and not sec_str.lower().startswith("section"):
             sec_str = f"Section {sec_str}"
-        return f"{act} — {sec_str}"
-    if title:
-        return f"{act} — {title}"
-    return act
+
+        key = (act, sec_str, title)
+        if key in seen:
+            continue
+        seen.add(key)
+
+        detail_line = f"{sec_str} — {title}" if (sec_str and title) else (sec_str or title or "Statutory Provision")
+        source_badge = f'<span class="lc-source-tag">{html.escape(source_name)}</span>' if source_name else ""
+        link_html = (
+            f'<a class="lc-source-link" href="{html.escape(url, quote=True)}" target="_blank" rel="noopener noreferrer">View Official Statute ↗</a>'
+            if url
+            else ""
+        )
+
+        cards.append(
+            '<div class="lc-source-card">'
+            '<div class="lc-source-card-top">'
+            f'<span class="lc-source-act">{html.escape(act or "Official Indian Statute")}</span>'
+            f'{source_badge}'
+            '</div>'
+            f'<div class="lc-source-card-sec">{html.escape(detail_line)}</div>'
+            f'{link_html}'
+            '</div>'
+        )
+
+    if not cards:
+        return ""
+
+    return (
+        '<div class="lc-sources-section">'
+        '<div class="lc-sources-title">Sources referenced</div>'
+        f'<div class="lc-sources-grid">{"".join(cards)}</div>'
+        '</div>'
+    )
 
 
 def render_assistant_message(message: dict) -> None:
@@ -140,42 +201,12 @@ def render_assistant_message(message: dict) -> None:
         )
         return
 
-    heading, body = split_heading(message.get("content") or "")
+    content = clean_model_answer(message.get("content") or "")
+    heading, body = split_heading(content)
     sources = message.get("sources") or []
-    pills = []
-    seen = set()
-
-    for source in sources:
-        if not isinstance(source, dict):
-            continue
-        label = format_source_label(source)
-        url = source.get("source_url") or ""
-        key = (label, url)
-        if key in seen:
-            continue
-        seen.add(key)
-        safe_label = html.escape(label)
-
-        if url:
-            safe_url = html.escape(url, quote=True)
-            pills.append(
-                f'<a class="lc-source-btn" href="{safe_url}" target="_blank" rel="noopener noreferrer">📄 {safe_label}</a>'
-            )
-        else:
-            pills.append(
-                f'<span class="lc-source-btn" style="cursor:default;">📄 {safe_label}</span>'
-            )
-
-    sources_html = ""
-    if pills:
-        sources_html = (
-            '<div class="lc-sources-section">'
-            '<div class="lc-sources-title">SOURCES REFERENCED</div>'
-            f'<div class="lc-sources-pills">{"".join(pills)}</div>'
-            "</div>"
-        )
-
+    sources_html = render_sources_section(sources)
     body_html = answer_to_html(body) if body else ""
+
     st.markdown(
         f"""
         <div class="lc-ai-msg-card">
@@ -191,7 +222,14 @@ def render_assistant_message(message: dict) -> None:
 
 def render_user_message(content: str) -> None:
     st.markdown(
-        f'<div class="lc-user-msg-row"><div class="lc-user-msg-bubble">{html.escape(content)}</div></div>',
+        f"""
+        <div class="lc-user-msg-row">
+          <div class="lc-user-msg-wrapper">
+            <div class="lc-user-label">You</div>
+            <div class="lc-user-msg-bubble">{html.escape(content)}</div>
+          </div>
+        </div>
+        """,
         unsafe_allow_html=True,
     )
 
@@ -205,26 +243,118 @@ def run_backend_question(question: str) -> None:
         return
 
     st.session_state.in_flight = True
+
+    # Prepare prior conversation history (last 6 turns)
+    history = [
+        {"role": m["role"], "content": m["content"]}
+        for m in st.session_state.messages[-6:]
+        if "content" in m and m["content"]
+    ]
+
+    # Append user question to state immediately so it renders in conversation
     st.session_state.messages.append({"role": "user", "content": clean_query})
-    with st.spinner("Retrieving verified legal sources and preparing answer..."):
-        result = ask_question(clean_query)
+
+    sources = []
+    full_text = ""
+    error_msg = None
+
+    status_placeholder = st.empty()
+    status_placeholder.markdown(
+        """
+        <div class="lc-ai-msg-card lc-ai-msg-streaming">
+          <div class="lc-ai-header-badge">⚖️ Legal Connect AI</div>
+          <div class="lc-searching-indicator">
+            <span class="lc-pulse-dot"></span> Searching verified legal sources & preparing response...
+          </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    card_placeholder = st.empty()
+
+    try:
+        for event in ask_question_stream(clean_query, history=history):
+            evt_type = event.get("type")
+            if evt_type == "meta":
+                sources = event.get("sources", [])
+                status_placeholder.markdown(
+                    """
+                    <div class="lc-ai-msg-card lc-ai-msg-streaming">
+                      <div class="lc-ai-header-badge">⚖️ Legal Connect AI</div>
+                      <div class="lc-searching-indicator">
+                        <span class="lc-pulse-dot"></span> Legal sources identified. Generating grounded response...
+                      </div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+            elif evt_type == "token":
+                status_placeholder.empty()
+                full_text += event.get("token", "")
+                cleaned_so_far = clean_model_answer(full_text)
+                heading, body = split_heading(cleaned_so_far)
+                body_html = answer_to_html(body) if body else ""
+                card_placeholder.markdown(
+                    f"""
+                    <div class="lc-ai-msg-card lc-ai-msg-streaming">
+                      <div class="lc-ai-header-badge">{get_icon_html("bot")} Legal Connect AI</div>
+                      <h3>{html.escape(heading)}</h3>
+                      <div class="body">{body_html}</div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+            elif evt_type == "error":
+                error_msg = event.get("error")
+    except Exception:
+        error_msg = "I couldn't generate a response right now. Please try again."
+
+    status_placeholder.empty()
+    card_placeholder.empty()
     st.session_state.in_flight = False
 
-    if result["ok"]:
-        st.session_state.messages.append(
-            {
-                "role": "assistant",
-                "content": result["answer"],
-                "sources": result["sources"],
-            }
-        )
+    cleaned_final = clean_model_answer(full_text)
+    if sources:
+        try:
+            allowed = extract_allowed_section_numbers(sources)
+            cleaned_final = sanitize_unsupported_citations(cleaned_final, allowed)
+        except Exception:
+            pass
+
+    if error_msg and not cleaned_final:
+        # Fallback to standard ask_question if stream encounters issue
+        fallback = ask_question(clean_query, history=history)
+        if fallback["ok"]:
+            fb_content = clean_model_answer(fallback["answer"])
+            if fallback.get("sources"):
+                try:
+                    fb_allowed = extract_allowed_section_numbers(fallback["sources"])
+                    fb_content = sanitize_unsupported_citations(fb_content, fb_allowed)
+                except Exception:
+                    pass
+            st.session_state.messages.append(
+                {
+                    "role": "assistant",
+                    "content": fb_content,
+                    "sources": fallback["sources"],
+                }
+            )
+        else:
+            st.session_state.messages.append(
+                {
+                    "role": "assistant",
+                    "error": fallback.get("error") or error_msg,
+                    "content": "",
+                    "sources": [],
+                }
+            )
     else:
         st.session_state.messages.append(
             {
                 "role": "assistant",
-                "error": result["error"],
-                "content": "",
-                "sources": [],
+                "content": cleaned_final,
+                "sources": sources,
             }
         )
 
@@ -240,29 +370,27 @@ def render_home() -> None:
         unsafe_allow_html=True,
     )
 
-    # Search Bar (Native Streamlit Form, no hash anchors)
-    _, search_col, _ = st.columns([0.1, 0.8, 0.1])
-    with search_col:
-        with st.form("home_search", border=False, clear_on_submit=False):
-            qcol, bcol = st.columns([0.82, 0.18], vertical_alignment="center")
-            with qcol:
-                query = st.text_input(
-                    "Ask a legal question",
-                    placeholder="Ask a legal question...",
-                    label_visibility="collapsed",
-                )
-            with bcol:
-                submitted = st.form_submit_button(
-                    "Ask", type="primary", use_container_width=True
-                )
-        if submitted:
-            if not query.strip():
-                st.warning("Please enter a legal question.")
-            else:
-                st.session_state.pending_question = query.strip()
-                goto("chat")
+    # Search Bar & Suggested Questions (Unified Global Container Width)
+    with st.form("home_search", border=False, clear_on_submit=False):
+        qcol, bcol = st.columns([0.84, 0.16], vertical_alignment="center")
+        with qcol:
+            query = st.text_input(
+                "Ask a legal question",
+                placeholder="Ask a legal question...",
+                label_visibility="collapsed",
+            )
+        with bcol:
+            submitted = st.form_submit_button(
+                "Ask", type="primary", use_container_width=True
+            )
+    if submitted:
+        if not query.strip():
+            st.warning("Please enter a legal question.")
+        else:
+            st.session_state.pending_question = query.strip()
+            goto("chat")
 
-    # Suggested Questions Pills as Native Interactive Buttons (No URL Hash!)
+    # Suggested Questions Pills inside the exact same container width
     st.markdown('<div class="lc-suggested-pills-label">SUGGESTED QUESTIONS</div>', unsafe_allow_html=True)
     pcols = st.columns(len(SUGGESTED_QUESTIONS))
     for idx, q_text in enumerate(SUGGESTED_QUESTIONS):
@@ -274,59 +402,30 @@ def render_home() -> None:
     # Section Title
     st.markdown('<h2 class="lc-section-heading">Six ways we can help</h2>', unsafe_allow_html=True)
 
-    # 6 Category Cards Grid in 3 columns desktop layout
-    for row_idx in range(0, len(CATEGORIES), 3):
-        cols = st.columns(3)
-        for col_idx, col in enumerate(cols):
-            cat_index = row_idx + col_idx
-            if cat_index < len(CATEGORIES):
-                cat = CATEGORIES[cat_index]
-                with col:
-                    card_html = f"""
-                    <a target="_self" class="lc-cat-card" href="?page=categories&cat={cat['id']}">
-                      <div class="lc-card-icon-box">{get_icon_html(cat['icon'])}</div>
-                      <h3>{html.escape(cat['name'])}</h3>
-                      <p>{html.escape(cat['tagline'])}</p>
-                    </a>
-                    """
-                    st.markdown(card_html, unsafe_allow_html=True)
+    # 6 Category Cards Grid in strict 3-column CSS Grid (Equal width, equal height, consistent icons & text)
+    cards_html = []
+    for cat in CATEGORIES:
+        card = (
+            f'<a target="_self" class="lc-cat-card" href="?page=categories&cat={cat["id"]}">'
+            f'<div class="lc-card-icon-box">{get_icon_html(cat["icon"])}</div>'
+            f'<h3>{html.escape(cat["name"])}</h3>'
+            f'<p>{html.escape(cat["tagline"])}</p>'
+            '</a>'
+        )
+        cards_html.append(card)
+    grid_html = f'<div class="lc-cat-grid">{"".join(cards_html)}</div>'
+    st.markdown(grid_html, unsafe_allow_html=True)
 
-    # Bottom 3 Feature Pillars
+    # Bottom 3 Feature Pillars in strict 3-column CSS Grid
     st.markdown('<div class="lc-home-features-divider"></div>', unsafe_allow_html=True)
-    fcol1, fcol2, fcol3 = st.columns(3)
-    with fcol1:
-        st.markdown(
-            f"""
-            <div class="lc-feature-item">
-              <div class="lc-card-icon-box">{get_icon_html("checkdoc")}</div>
-              <h3>Grounded in Verified Sources</h3>
-              <p>Information curated from official government databases and updated legal codes.</p>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-    with fcol2:
-        st.markdown(
-            f"""
-            <div class="lc-feature-item">
-              <div class="lc-card-icon-box">{get_icon_html("translate")}</div>
-              <h3>Plain-Language Answers</h3>
-              <p>Complex legal jargon simplified for immediate comprehension.</p>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-    with fcol3:
-        st.markdown(
-            f"""
-            <div class="lc-feature-item">
-              <div class="lc-card-icon-box">{get_icon_html("list")}</div>
-              <h3>Step-by-Step Guidance</h3>
-              <p>Clear, actionable steps on how to proceed with legal procedures.</p>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
+    features_html = (
+        '<div class="lc-features-grid">'
+        f'<div class="lc-feature-item"><div class="lc-card-icon-box">{get_icon_html("checkdoc")}</div><h3>Grounded in Verified Sources</h3><p>Information curated from official government databases and updated legal codes.</p></div>'
+        f'<div class="lc-feature-item"><div class="lc-card-icon-box">{get_icon_html("translate")}</div><h3>Plain-Language Answers</h3><p>Complex legal jargon simplified for immediate comprehension.</p></div>'
+        f'<div class="lc-feature-item"><div class="lc-card-icon-box">{get_icon_html("list")}</div><h3>Step-by-Step Guidance</h3><p>Clear, actionable steps on how to proceed with legal procedures.</p></div>'
+        '</div>'
+    )
+    st.markdown(features_html, unsafe_allow_html=True)
 
     render_footer()
 
@@ -349,8 +448,8 @@ def render_resources() -> None:
           </div>
           {helplines_html}
         </div>
-        <h1 style="font-size:42px; margin-bottom:12px;">Verified Resources</h1>
-        <p style="color:var(--slate-gray); font-size:16.5px; max-width:740px; margin-bottom:28px;">
+        <h1 class="lc-page-title" style="margin-top:24px; text-align:left;">Verified Resources</h1>
+        <p class="lc-page-subtitle" style="text-align:left; margin:0 0 24px 0;">
           A curated directory of official legal resources, statutory portals, and trusted advisory bodies for comprehensive legal research.
         </p>
         """,
@@ -375,15 +474,15 @@ def render_resources() -> None:
 def render_about() -> None:
     st.markdown(
         """
-        <div style="max-width:1040px; margin:0 auto; padding:24px 16px;">
-          <h1 style="font-size:42px; margin-bottom:16px;">About Legal Connect</h1>
-          <p style="color:var(--slate-gray); font-size:17px; line-height:1.65; max-width:840px;">
+        <div class="lc-about-hero">
+          <h1 class="lc-page-title" style="text-align:left; margin-bottom:16px;">About Legal Connect</h1>
+          <p class="lc-page-body" style="font-size:16.5px; line-height:1.65; margin-bottom:16px;">
             Legal Connect is an AI-powered legal awareness platform designed to help citizens understand official Indian laws, citizen rights, and legal procedures in plain language.
           </p>
-          <p style="color:var(--slate-gray); font-size:16px; line-height:1.65; max-width:840px;">
+          <p class="lc-page-body" style="font-size:15.5px; line-height:1.65; margin-bottom:16px;">
             All answers are generated using a Retrieval-Augmented Generation (RAG) pipeline trained over verified primary sources, including the Bharatiya Nyaya Sanhita, 2023 (BNS), the Bharatiya Nagarik Suraksha Sanhita, 2023 (BNSS), and the Bharatiya Sakshya Adhiniyam, 2023 (BSA).
           </p>
-          <p style="color:var(--slate-gray); font-size:16px; line-height:1.65; max-width:840px; margin-bottom:36px;">
+          <p class="lc-page-body lc-disclaimer-callout" style="font-size:15px; line-height:1.65; margin-bottom:32px;">
             <strong>Legal Disclaimer:</strong> Legal Connect provides legal information for awareness only and does not constitute formal legal advice. For formal proceedings or legal representation, consult a qualified advocate.
           </p>
         </div>
@@ -391,41 +490,14 @@ def render_about() -> None:
         unsafe_allow_html=True,
     )
 
-    fcol1, fcol2, fcol3 = st.columns(3)
-    with fcol1:
-        st.markdown(
-            f"""
-            <div class="lc-feature-item" style="background:#fff; border:1px solid var(--border-light); border-radius:12px; padding:24px;">
-              <div class="lc-card-icon-box">{get_icon_html("checkdoc")}</div>
-              <h3>Verified Legal Sources</h3>
-              <p>Direct citations and official source links returned with every query response.</p>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-    with fcol2:
-        st.markdown(
-            f"""
-            <div class="lc-feature-item" style="background:#fff; border:1px solid var(--border-light); border-radius:12px; padding:24px;">
-              <div class="lc-card-icon-box">{get_icon_html("translate")}</div>
-              <h3>Plain-Language Clarity</h3>
-              <p>Legal acts and complex statutory sections explained in accessible, clear English.</p>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-    with fcol3:
-        st.markdown(
-            f"""
-            <div class="lc-feature-item" style="background:#fff; border:1px solid var(--border-light); border-radius:12px; padding:24px;">
-              <div class="lc-card-icon-box">{get_icon_html("list")}</div>
-              <h3>Structured Guidance</h3>
-              <p>Clear recommended steps and actionable procedures for legal situations.</p>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
+    features_html = (
+        '<div class="lc-features-grid">'
+        f'<div class="lc-feature-item"><div class="lc-card-icon-box">{get_icon_html("checkdoc")}</div><h3>Verified Legal Sources</h3><p>Direct citations and official source links returned with every query response.</p></div>'
+        f'<div class="lc-feature-item"><div class="lc-card-icon-box">{get_icon_html("translate")}</div><h3>Plain-Language Clarity</h3><p>Legal acts and complex statutory sections explained in accessible, clear English.</p></div>'
+        f'<div class="lc-feature-item"><div class="lc-card-icon-box">{get_icon_html("list")}</div><h3>Structured Guidance</h3><p>Clear recommended steps and actionable procedures for legal situations.</p></div>'
+        '</div>'
+    )
+    st.markdown(features_html, unsafe_allow_html=True)
     render_footer()
 
 
@@ -433,7 +505,7 @@ def render_categories() -> None:
     # Full Category Navigation Bar (All categories accessible!)
     selected_cat_id = st.query_params.get("cat", CATEGORIES[0]["id"])
     
-    st.markdown('<h1 style="font-size:42px; margin-bottom:16px;">Legal Categories</h1>', unsafe_allow_html=True)
+    st.markdown('<h1 class="lc-page-title" style="text-align:left; margin-bottom:16px;">Legal Categories</h1>', unsafe_allow_html=True)
     
     cat_cols = st.columns(len(CATEGORIES))
     for idx, c_item in enumerate(CATEGORIES):
@@ -463,13 +535,13 @@ def render_categories() -> None:
     left_col, right_col = st.columns([1.7, 0.9], gap="large")
 
     with left_col:
-        st.markdown('<h2 style="font-size:26px; margin-bottom:16px;">Common Questions</h2>', unsafe_allow_html=True)
+        st.markdown('<h2 style="font-size:22px; margin-bottom:16px;">Common Questions</h2>', unsafe_allow_html=True)
         for faq in cat["faqs"]:
             with st.expander(faq["q"], expanded=False):
                 st.write(faq["a"])
 
         st.markdown(
-            f'<h2 style="font-size:26px; margin:32px 0 16px;">{html.escape(cat["stepper_title"])}</h2>',
+            f'<h2 style="font-size:22px; margin:32px 0 16px;">{html.escape(cat["stepper_title"])}</h2>',
             unsafe_allow_html=True,
         )
 
@@ -508,10 +580,12 @@ def render_categories() -> None:
             unsafe_allow_html=True,
         )
 
-    # Bottom CTA Button
+    # Bottom CTA Button centered
+    st.markdown('<div class="lc-bottom-cta-container">', unsafe_allow_html=True)
     if st.button(f"💬 Ask Legal Connect about {cat['name']}", type="primary", use_container_width=False):
         st.session_state.pending_question = cat["ask_prompt"]
         goto("chat")
+    st.markdown('</div>', unsafe_allow_html=True)
 
     render_footer()
 
@@ -570,9 +644,43 @@ def render_chat() -> None:
 
     if not st.session_state.messages:
         st.markdown(
-            '<div style="text-align:center; color:var(--slate-gray); padding:48px 16px; font-size:15px;">Ask a legal question to receive plain-language guidance grounded in official statutes. This is legal awareness information, not legal advice.</div>',
+            """
+            <div class="lc-chat-empty-state">
+              <div class="lc-empty-badge">⚖️ LEGALCONNECT ASSISTANT</div>
+              <h2>Understand your legal rights in plain language.</h2>
+              <p>Describe your real-world situation or legal problem below. LegalConnect searches verified Indian statutory sources across criminal, cyber, consumer, labour, and family protection laws to provide plain-language guidance.</p>
+            </div>
+            """,
             unsafe_allow_html=True,
         )
+        st.markdown(
+            '<div class="lc-empty-starters-label">OR SELECT A REAL-LIFE SITUATION TO EXPLORE:</div>',
+            unsafe_allow_html=True,
+        )
+        starter_cols = st.columns(2)
+        starters = [
+            (
+                "🛒 Defective Product & Seller Refusal",
+                "I bought a phone recently and it stopped working. The seller refuses to help me. What can I do?",
+            ),
+            (
+                "💼 Unpaid Salary & Withheld Pay",
+                "My employer hasn't paid my salary for two months. What options might I have?",
+            ),
+            (
+                "🔒 Personal Detail Misuse & Online Identity",
+                "Someone is using my name and personal details online without my permission. What should I do?",
+            ),
+            (
+                "🛡️ Safety Concerns & Domestic Protection",
+                "My husband keeps threatening me and I am worried about my safety. What legal protection may be available?",
+            ),
+        ]
+        for idx, (label, query) in enumerate(starters):
+            with starter_cols[idx % 2]:
+                if st.button(label, key=f"starter_q_{idx}", use_container_width=True, disabled=st.session_state.in_flight):
+                    st.session_state.pending_question = query
+                    st.rerun()
 
     for message in st.session_state.messages:
         if message["role"] == "user":
@@ -580,46 +688,30 @@ def render_chat() -> None:
         else:
             render_assistant_message(message)
 
-    # Chat Input Form Bar
-    _, chat_form_col, _ = st.columns([0.05, 0.9, 0.05])
-    with chat_form_col:
-        with st.form("chat_form", border=False, clear_on_submit=True):
-            c_attach, c_input, c_mic, c_send = st.columns(
-                [0.08, 0.72, 0.08, 0.12], vertical_alignment="center"
+    # Chat Input Form Bar - spans full container width matching scenario buttons & messages
+    with st.form("chat_form", border=False, clear_on_submit=True):
+        c_input, c_send = st.columns([0.86, 0.14], vertical_alignment="center")
+        with c_input:
+            follow_up = st.text_input(
+                "Question",
+                placeholder="Describe your legal situation or ask a question...",
+                label_visibility="collapsed",
+                disabled=st.session_state.in_flight,
             )
-            with c_attach:
-                st.form_submit_button(
-                    "📎", disabled=True, help="File attachments disabled."
-                )
-            with c_input:
-                follow_up = st.text_input(
-                    "Follow-up",
-                    placeholder="Ask a follow-up question...",
-                    label_visibility="collapsed",
-                    disabled=st.session_state.in_flight,
-                )
-            with c_mic:
-                st.form_submit_button(
-                    "🎤", disabled=True, help="Voice input disabled."
-                )
-            with c_send:
-                sent = st.form_submit_button(
-                    "➤", type="primary", disabled=st.session_state.in_flight
-                )
-        if sent:
-            if st.session_state.in_flight:
-                st.info("Please wait for the current answer to complete.")
-            elif not (follow_up or "").strip():
-                st.warning("Please enter a valid question.")
-            else:
-                st.session_state.pending_question = follow_up.strip()
-                st.rerun()
+        with c_send:
+            sent = st.form_submit_button(
+                "Send ➤", type="primary", use_container_width=True, disabled=st.session_state.in_flight
+            )
+    if sent:
+        if st.session_state.in_flight:
+            st.info("Please wait for the current answer to complete.")
+        elif not (follow_up or "").strip():
+            st.warning("Please enter a valid question.")
+        else:
+            st.session_state.pending_question = follow_up.strip()
+            st.rerun()
 
-        st.markdown(
-            '<p class="lc-chat-disclaimer-note">AI can make mistakes. Verify important information.</p>',
-            unsafe_allow_html=True,
-        )
-        st.markdown(
-            '<p class="lc-chat-disclaimer-note">This AI-powered tool provides information, not legal advice. Consult a qualified professional for legal proceedings.</p>',
-            unsafe_allow_html=True,
-        )
+    st.markdown(
+        '<div class="lc-chat-disclaimer-note">⚖️ <strong>Legal Awareness Notice:</strong> LegalConnect provides legal awareness information, not formal legal advice. For formal proceedings or representation, consult a qualified advocate.</div>',
+        unsafe_allow_html=True,
+    )
