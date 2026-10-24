@@ -5,9 +5,9 @@ import json
 import time
 import argparse
 from pathlib import Path
+from typing import Any, Optional, List, Dict, Tuple
 import requests
 import chromadb
-from sentence_transformers import SentenceTransformer
 
 # Configure offline mode only when explicitly requested in environment
 if os.environ.get("HF_HUB_OFFLINE") in ("1", "true", "yes"):
@@ -44,6 +44,7 @@ except ImportError:
 
 CHROMA_PATH = Path(os.environ.get("CHROMA_PERSIST_DIR", str(PROJECT_ROOT / "vectorstore" / "chroma")))
 COLLECTION_NAME = os.environ.get("CHROMA_COLLECTION", "legal_bns_2023")
+EMBEDDING_BACKEND = os.environ.get("EMBEDDING_BACKEND", "onnx").lower().strip()
 EMBEDDING_MODEL = os.environ.get("EMBEDDING_MODEL", "sentence-transformers/all-MiniLM-L6-v2")
 OLLAMA_BASE_URL = os.environ.get("OLLAMA_BASE_URL", "http://127.0.0.1:11434").rstrip("/")
 OLLAMA_URL = f"{OLLAMA_BASE_URL}/api/generate"
@@ -105,12 +106,65 @@ def get_llm_config() -> dict:
 _CACHED_RESOURCES = None
 
 
-def load_embedding_model(model_name: str = EMBEDDING_MODEL) -> SentenceTransformer:
+class ONNXEmbeddingModel:
     """
-    Load SentenceTransformer embedding model.
-    Tries offline loading from cache first to avoid unnecessary network calls.
-    Falls back to downloading once if cache is missing and offline mode is not enforced.
+    Lightweight, low-memory ONNX Runtime embedding model wrapper for all-MiniLM-L6-v2.
+    Produces identical 384-dimensional normalized vectors to SentenceTransformers
+    with 0 MB PyTorch overhead (~200+ MB RAM savings to fit within Render 512 MB).
     """
+
+    def __init__(self, ef: Optional[Any] = None):
+        if ef is None:
+            # Enforce single-thread execution for minimal memory footprint on constrained vCPU
+            os.environ.setdefault("OMP_NUM_THREADS", "1")
+            os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
+            os.environ.setdefault("MKL_NUM_THREADS", "1")
+            from chromadb.utils.embedding_functions import ONNXMiniLM_L6_V2
+            self.ef = ONNXMiniLM_L6_V2(preferred_providers=["CPUExecutionProvider"])
+            custom_cache = os.environ.get("CHROMA_ONNX_CACHE_DIR")
+            if custom_cache:
+                self.ef.DOWNLOAD_PATH = Path(custom_cache)
+        else:
+            self.ef = ef
+
+    def encode(self, texts: Any, normalize_embeddings: bool = True) -> Any:
+        import numpy as np
+        is_single = isinstance(texts, str)
+        input_list = [texts] if is_single else list(texts)
+
+        if not input_list:
+            return np.empty((0, 384), dtype=np.float32)
+
+        embeddings = self.ef(input_list)
+        arr = np.array(embeddings, dtype=np.float32)
+        if normalize_embeddings:
+            norm = np.linalg.norm(arr, axis=1, keepdims=True)
+            norm[norm == 0] = 1e-12
+            arr = arr / norm
+
+        return arr[0] if is_single else arr
+
+
+def load_embedding_model(model_name: str = EMBEDDING_MODEL) -> Any:
+    """
+    Load embedding model.
+    Defaults to high-efficiency, zero-PyTorch ONNXMiniLM_L6_V2 (384 dimensions),
+    which cuts backend RAM consumption by ~200+ MB to fit comfortably inside 512 MB.
+    Falls back to SentenceTransformer if explicitly requested via EMBEDDING_BACKEND=sentence_transformers.
+    """
+    backend = os.environ.get("EMBEDDING_BACKEND", "onnx").lower().strip()
+
+    if backend == "onnx":
+        try:
+            model = ONNXEmbeddingModel()
+            # Warm up session once to initialize weights and measure true init timing
+            _ = model.encode(["warmup query"])
+            return model
+        except Exception as e:
+            print(f"Warning: Failed to initialize ONNX embedding runtime: {e}. Falling back to SentenceTransformer...")
+
+    # Fallback to SentenceTransformer if explicitly requested or if ONNX initialization failed
+    from sentence_transformers import SentenceTransformer
     offline_env = os.environ.get("HF_HUB_OFFLINE", "").strip().lower()
     explicit_offline = offline_env in ("1", "true", "yes")
 

@@ -1,7 +1,8 @@
-# LegalConnect — FastAPI Backend Runtime Dependencies
+# LegalConnect — FastAPI Backend Runtime Dependencies (Lean 512 MB RAM Profile)
 requests>=2.31.0
 pydantic>=2.0.0
-sentence-transformers>=2.2.0
 chromadb>=0.4.0
+onnxruntime>=1.14.0
+tokenizers>=0.13.0
 fastapi>=0.100.0
 uvicorn[standard]>=0.23.0

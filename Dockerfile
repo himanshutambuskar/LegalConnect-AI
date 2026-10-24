@@ -18,9 +18,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Upgrade pip and install lightweight CPU-only PyTorch
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu
+# Upgrade pip
+RUN pip install --no-cache-dir --upgrade pip
 
 # Install backend python dependencies
 COPY backend/requirements.txt .
@@ -29,9 +28,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Switch to non-root user before caching model and copying application source
 USER user
 
-# Pre-download embedding model into user-accessible cache during image build
-# This makes container startup instant and eliminates runtime network dependencies
-RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2', device='cpu')"
+# Pre-download ONNX embedding model into user-accessible cache during image build
+# This makes container startup instant, avoids PyTorch (~200+ MB RAM savings), and eliminates runtime network dependencies
+RUN python -c "from chromadb.utils.embedding_functions import ONNXMiniLM_L6_V2; ef = ONNXMiniLM_L6_V2(); ef(['warmup'])"
 
 # Copy application source code with user ownership
 COPY --chown=user:user . $HOME/app
