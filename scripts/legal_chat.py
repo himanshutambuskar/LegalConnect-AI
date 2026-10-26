@@ -526,7 +526,7 @@ def generate_answer(prompt, return_timing=False, allowed_sections=None):
         # Standardized provider-agnostic keys
         "llm_request_start_ms": request_start_ms,
         "total_llm_generation_time_ms": total_generation_time_ms,
-        "time_to_first_token_ms": total_generation_time_ms,
+        "time_to_first_token_ms": 0.0,
         "ttft_applicable": False,
         "finish_reason": finish_reason,
         "truncated": is_truncated,

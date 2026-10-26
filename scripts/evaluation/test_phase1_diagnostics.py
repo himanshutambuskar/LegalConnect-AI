@@ -231,7 +231,7 @@ class TestPhase1Diagnostics(unittest.TestCase):
             {
                 "llm_request_start_ms": 200.0,
                 "total_llm_generation_time_ms": 1200.0,
-                "time_to_first_token_ms": 1200.0,
+                "time_to_first_token_ms": 0.0,
                 "ttft_applicable": False,
                 "finish_reason": "stop",
                 "truncated": False,
@@ -257,7 +257,7 @@ class TestPhase1Diagnostics(unittest.TestCase):
         # 2. Verify legacy keys preserved
         self.assertEqual(timing["ollama_request_start_time_ms"], 200.0)
         self.assertEqual(timing["total_ollama_generation_time_ms"], 1200.0)
-        self.assertEqual(timing["time_to_first_token_ms"], 1200.0)
+        self.assertEqual(timing["time_to_first_token_ms"], 0.0)
         self.assertIn("total_request_time_ms", timing)
 
         # 3. Verify streaming telemetry includes ttft_applicable=True
@@ -631,6 +631,70 @@ class TestPhase1Diagnostics(unittest.TestCase):
             timing_event = next(e for e in events if e.get("type") == "timing")
             self.assertTrue(timing_event["timing"]["ttft_applicable"])
             self.assertGreater(timing_event["timing"]["time_to_first_token_ms"], 0.0)
+
+    # 15. Non-Streaming TTFT Zero and Generation Time Preservation
+    @patch("backend.main.retrieve_legal_chunks")
+    @patch("requests.post")
+    def test_15_non_streaming_ttft_zero_and_generation_time_preserved(self, mock_post, mock_retrieval):
+        mock_retrieval.return_value = {
+            "is_confident": True,
+            "reranked_results": [
+                {
+                    "document": "Section 185 penalties",
+                    "metadata": {"act": "Motor Vehicles Act, 1988", "section_number": "185", "title": "Section 185"},
+                    "distance": 0.1,
+                }
+            ],
+            "timing": {
+                "query_embedding_time_ms": 10.0,
+                "chromadb_search_time_ms": 20.0,
+                "exact_metadata_lookup_time_ms": 1.0,
+                "act_title_lookup_time_ms": 2.0,
+                "reranking_time_ms": 3.0,
+                "total_retrieval_time_ms": 36.0,
+                "rag_context_construction_time_ms": 1.0,
+            },
+        }
+
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = {
+            "choices": [
+                {
+                    "message": {"content": "Under Section 185, penalties apply."},
+                    "finish_reason": "stop"
+                }
+            ]
+        }
+        mock_post.return_value = mock_resp
+
+        env = {
+            "LLM_PROVIDER": "openai_compatible",
+            "LLM_BASE_URL": "https://openrouter.ai/api/v1",
+            "LLM_API_KEY": "sk-test-key",
+            "LLM_MODEL": "cohere/north-mini-code:free",
+        }
+        with patch.dict(os.environ, env, clear=True):
+            # A. Test direct generate_answer telemetry
+            _, gen_timing = generate_answer("Prompt", return_timing=True, allowed_sections={"185"})
+            self.assertFalse(gen_timing["ttft_applicable"])
+            self.assertEqual(gen_timing["time_to_first_token_ms"], 0.0)
+            self.assertGreater(gen_timing["total_llm_generation_time_ms"], 0.0)
+
+            # B. Test FastAPI POST /ask response telemetry
+            client = TestClient(app)
+            resp = client.post("/ask", json={"question": "What is Section 185?"})
+            self.assertEqual(resp.status_code, 200)
+            data = resp.json()
+            timing = data["timing"]
+
+            # Confirm TTFT is not applicable and reported as 0.0
+            self.assertFalse(timing["ttft_applicable"])
+            self.assertEqual(timing["time_to_first_token_ms"], 0.0)
+
+            # Confirm generation duration and total request duration are preserved (> 0.0)
+            self.assertGreater(timing["total_llm_generation_time_ms"], 0.0)
+            self.assertGreater(timing["total_request_time_ms"], 0.0)
 
 
 def run_tests():

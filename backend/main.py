@@ -289,7 +289,7 @@ def ask_question(request: QuestionRequest):
             "truncated": gen_timing.get("truncated", False),
             # Legacy telemetry fields (preserved for backwards compatibility)
             "ollama_request_start_time_ms": gen_timing.get("ollama_request_start_ms", 0.0),
-            "time_to_first_token_ms": gen_timing.get("time_to_first_token_ms", 0.0),
+            "time_to_first_token_ms": 0.0,
             "total_ollama_generation_time_ms": gen_timing.get("total_ollama_generation_time_ms", 0.0),
             "total_request_time_ms": total_request_time_ms,
         }
