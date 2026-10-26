@@ -53,6 +53,16 @@ LLM_MODEL = os.environ.get("LLM_MODEL", "qwen3:4b")
 LLM_PROVIDER = os.environ.get("LLM_PROVIDER", "ollama").lower().strip()
 LLM_BASE_URL = os.environ.get("LLM_BASE_URL", "").rstrip("/")
 LLM_API_KEY = os.environ.get("LLM_API_KEY", "").strip()
+LLM_MAX_TOKENS_DEFAULT = 1500
+
+
+def get_max_tokens() -> int:
+    """Retrieve and validate LLM output token ceiling (defaults to 1500)."""
+    try:
+        val = int(os.environ.get("LLM_MAX_TOKENS", str(LLM_MAX_TOKENS_DEFAULT)))
+        return val if val > 0 else LLM_MAX_TOKENS_DEFAULT
+    except (ValueError, TypeError):
+        return LLM_MAX_TOKENS_DEFAULT
 
 
 def get_llm_config() -> dict:
@@ -66,6 +76,8 @@ def get_llm_config() -> dict:
             f"Unsupported LLM_PROVIDER '{provider}'. Supported providers are: 'ollama', 'openai_compatible'."
         )
 
+    max_tokens = get_max_tokens()
+
     if provider == "ollama":
         base_url = os.environ.get("OLLAMA_BASE_URL", "http://127.0.0.1:11434").rstrip("/")
         model = os.environ.get("LLM_MODEL", "qwen3:4b").strip()
@@ -76,6 +88,7 @@ def get_llm_config() -> dict:
             "base_url": base_url,
             "api_key": "",
             "model": model,
+            "max_tokens": max_tokens,
         }
 
     # provider == "openai_compatible"
@@ -96,6 +109,7 @@ def get_llm_config() -> dict:
         "base_url": base_url,
         "api_key": api_key,
         "model": model,
+        "max_tokens": max_tokens,
     }
 
 
@@ -413,8 +427,10 @@ CRITICAL RESPONSE GUIDELINES:
 
 def generate_answer(prompt, return_timing=False, allowed_sections=None):
     config = get_llm_config()
+    max_tokens = config.get("max_tokens", LLM_MAX_TOKENS_DEFAULT)
     t_gen_start = time.perf_counter()
     t_post_start = time.perf_counter()
+    finish_reason = "stop"
 
     if config["provider"] == "ollama":
         prefill = "<think>\nDirect response.\n</think>\n\n"
@@ -431,7 +447,7 @@ def generate_answer(prompt, return_timing=False, allowed_sections=None):
                 "stream": False,
                 "options": {
                     "temperature": 0.2,
-                    "num_predict": 650,
+                    "num_predict": max_tokens,
                     "keep_alive": "30m"
                 }
             },
@@ -441,6 +457,8 @@ def generate_answer(prompt, return_timing=False, allowed_sections=None):
         response.raise_for_status()
         data = response.json()
         raw_response = data.get("message", {}).get("content", "")
+        if data.get("done"):
+            finish_reason = data.get("done_reason") or "stop"
     else:
         # Hosted OpenAI-compatible provider
         url = f"{config['base_url']}/chat/completions"
@@ -454,7 +472,7 @@ def generate_answer(prompt, return_timing=False, allowed_sections=None):
                 {"role": "user", "content": prompt}
             ],
             "temperature": 0.2,
-            "max_tokens": 800,
+            "max_tokens": max_tokens,
             "stream": False,
         }
         response = requests.post(url, json=payload, headers=headers, timeout=120)
@@ -463,13 +481,17 @@ def generate_answer(prompt, return_timing=False, allowed_sections=None):
             raise PermissionError("Authentication failed with the hosted AI service. Please verify LLM_API_KEY.")
         if response.status_code == 429:
             raise RuntimeError("Rate limit exceeded for the hosted AI service. Please try again shortly.")
+        if response.status_code in (502, 503, 504):
+            raise requests.exceptions.ConnectionError("The AI service is temporarily unavailable or timed out upstream. Please try again shortly.")
         response.raise_for_status()
         data = response.json()
         choices = data.get("choices", [])
         if not choices:
             raw_response = ""
+            finish_reason = "empty"
         else:
-            raw_response = choices[0].get("message", {}).get("content", "")
+            raw_response = choices[0].get("message", {}).get("content", "") or ""
+            finish_reason = choices[0].get("finish_reason") or "stop"
 
     if "</think>" in raw_response:
         cleaned = raw_response.split("</think>")[-1].strip()
@@ -478,12 +500,34 @@ def generate_answer(prompt, return_timing=False, allowed_sections=None):
     cleaned = cleaned.replace("<think>", "").strip()
     if allowed_sections is not None:
         cleaned = sanitize_unsupported_citations(cleaned, allowed_sections)
+
+    is_truncated = (finish_reason == "length")
+    if is_truncated:
+        if cleaned and not cleaned.endswith((".", "!", "?", "*", '"')):
+            cleaned += "..."
+        cleaned += (
+            "\n\n*[Note: Response reached the maximum output token limit and may be incomplete. "
+            "Please ask a follow-up question for additional details or specific sections.]*"
+        )
+    elif not cleaned:
+        cleaned = "I couldn't generate a response for this legal query. Please try rephrasing your question."
+
     t_gen_end = time.perf_counter()
+    request_start_ms = round((t_post_end - t_post_start) * 1000, 2)
+    total_generation_time_ms = round((t_gen_end - t_gen_start) * 1000, 2)
 
     gen_timing = {
-        "ollama_request_start_ms": round((t_post_end - t_post_start) * 1000, 2),
-        "total_ollama_generation_time_ms": round((t_gen_end - t_gen_start) * 1000, 2),
-        "time_to_first_token_ms": round((t_gen_end - t_gen_start) * 1000, 2),
+        # Standardized provider-agnostic keys
+        "llm_request_start_ms": request_start_ms,
+        "total_llm_generation_time_ms": total_generation_time_ms,
+        "time_to_first_token_ms": total_generation_time_ms,
+        "ttft_applicable": False,
+        "finish_reason": finish_reason,
+        "truncated": is_truncated,
+        "provider": config["provider"],
+        # Legacy backwards compatibility keys
+        "ollama_request_start_ms": request_start_ms,
+        "total_ollama_generation_time_ms": total_generation_time_ms,
     }
 
     if return_timing:
@@ -498,10 +542,13 @@ def generate_answer_stream(prompt, return_timing_callback=None, allowed_sections
     passing each token chunk through citation safety filtering.
     """
     config = get_llm_config()
+    max_tokens = config.get("max_tokens", LLM_MAX_TOKENS_DEFAULT)
     t_gen_start = time.perf_counter()
     t_post_start = time.perf_counter()
 
     process_token, flush_stream = create_citation_stream_filter(allowed_sections)
+    stream_finish_reason = None
+    has_yielded_token = False
 
     if config["provider"] == "ollama":
         prefill = "<think>\nDirect response.\n</think>\n\n"
@@ -518,7 +565,7 @@ def generate_answer_stream(prompt, return_timing_callback=None, allowed_sections
                 "stream": True,
                 "options": {
                     "temperature": 0.2,
-                    "num_predict": 650,
+                    "num_predict": max_tokens,
                     "keep_alive": "30m"
                 }
             },
@@ -537,6 +584,8 @@ def generate_answer_stream(prompt, return_timing_callback=None, allowed_sections
                 continue
             try:
                 data = json.loads(line.decode("utf-8"))
+                if data.get("done"):
+                    stream_finish_reason = data.get("done_reason") or "stop"
                 chunk = data.get("message", {}).get("content", "")
                 if not chunk:
                     continue
@@ -558,6 +607,7 @@ def generate_answer_stream(prompt, return_timing_callback=None, allowed_sections
                         first_token_time_ms = round((time.perf_counter() - t_gen_start) * 1000, 2)
                     filtered = process_token(chunk)
                     if filtered:
+                        has_yielded_token = True
                         yield filtered
             except Exception:
                 continue
@@ -575,7 +625,7 @@ def generate_answer_stream(prompt, return_timing_callback=None, allowed_sections
                 {"role": "user", "content": prompt}
             ],
             "temperature": 0.2,
-            "max_tokens": 800,
+            "max_tokens": max_tokens,
             "stream": True,
         }
         response = requests.post(url, json=payload, headers=headers, stream=True, timeout=120)
@@ -585,6 +635,8 @@ def generate_answer_stream(prompt, return_timing_callback=None, allowed_sections
             raise PermissionError("Authentication failed with the hosted AI service. Please verify LLM_API_KEY.")
         if response.status_code == 429:
             raise RuntimeError("Rate limit exceeded for the hosted AI service. Please try again shortly.")
+        if response.status_code in (502, 503, 504):
+            raise requests.exceptions.ConnectionError("The AI service is temporarily unavailable or timed out upstream. Please try again shortly.")
         response.raise_for_status()
 
         first_token_time_ms = None
@@ -611,6 +663,9 @@ def generate_answer_stream(prompt, return_timing_callback=None, allowed_sections
                 choices = data.get("choices", [])
                 if not choices:
                     continue
+                chunk_finish_reason = choices[0].get("finish_reason")
+                if chunk_finish_reason:
+                    stream_finish_reason = chunk_finish_reason
                 chunk = choices[0].get("delta", {}).get("content", "")
                 if not chunk:
                     continue
@@ -632,13 +687,26 @@ def generate_answer_stream(prompt, return_timing_callback=None, allowed_sections
                         first_token_time_ms = round((time.perf_counter() - t_gen_start) * 1000, 2)
                     filtered = process_token(chunk)
                     if filtered:
+                        has_yielded_token = True
                         yield filtered
             except Exception:
                 continue
 
     remaining = flush_stream()
     if remaining:
+        has_yielded_token = True
         yield remaining
+
+    is_truncated = (stream_finish_reason == "length")
+    if is_truncated:
+        truncation_note = (
+            "\n\n*[Note: Response reached the maximum output token limit and may be incomplete. "
+            "Please ask a follow-up question for additional details.]*"
+        )
+        yield truncation_note
+    elif not has_yielded_token:
+        empty_note = "I couldn't generate a response for this legal query. Please try rephrasing your question."
+        yield empty_note
 
     t_gen_end = time.perf_counter()
     total_generation_time_ms = round((t_gen_end - t_gen_start) * 1000, 2)
@@ -647,9 +715,17 @@ def generate_answer_stream(prompt, return_timing_callback=None, allowed_sections
 
     if return_timing_callback:
         return_timing_callback({
-            "ollama_request_start_ms": request_start_ms,
+            # Standardized provider-agnostic keys
+            "llm_request_start_ms": request_start_ms,
+            "total_llm_generation_time_ms": total_generation_time_ms,
             "time_to_first_token_ms": first_token_time_ms,
-            "total_ollama_generation_time_ms": total_generation_time_ms
+            "ttft_applicable": True,
+            "finish_reason": stream_finish_reason or "stop",
+            "truncated": is_truncated,
+            "provider": config["provider"],
+            # Legacy backwards compatibility keys
+            "ollama_request_start_ms": request_start_ms,
+            "total_ollama_generation_time_ms": total_generation_time_ms,
         })
 
 

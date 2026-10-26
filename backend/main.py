@@ -280,6 +280,14 @@ def ask_question(request: QuestionRequest):
             "retrieval_reranking_time_ms": prep["timing"].get("reranking_time_ms", 0.0),
             "total_retrieval_time_ms": prep["timing"].get("total_retrieval_time_ms", 0.0),
             "rag_context_construction_time_ms": prep["timing"].get("rag_context_construction_time_ms", 0.0),
+            # Standardized provider-agnostic telemetry
+            "llm_provider": gen_timing.get("provider", "unknown"),
+            "llm_request_start_time_ms": gen_timing.get("llm_request_start_ms", gen_timing.get("ollama_request_start_ms", 0.0)),
+            "total_llm_generation_time_ms": gen_timing.get("total_llm_generation_time_ms", gen_timing.get("total_ollama_generation_time_ms", 0.0)),
+            "ttft_applicable": False,
+            "finish_reason": gen_timing.get("finish_reason", "stop"),
+            "truncated": gen_timing.get("truncated", False),
+            # Legacy telemetry fields (preserved for backwards compatibility)
             "ollama_request_start_time_ms": gen_timing.get("ollama_request_start_ms", 0.0),
             "time_to_first_token_ms": gen_timing.get("time_to_first_token_ms", 0.0),
             "total_ollama_generation_time_ms": gen_timing.get("total_ollama_generation_time_ms", 0.0),
@@ -415,6 +423,14 @@ def ask_question_stream(request: QuestionRequest):
                 "retrieval_reranking_time_ms": prep["timing"].get("reranking_time_ms", 0.0),
                 "total_retrieval_time_ms": prep["timing"].get("total_retrieval_time_ms", 0.0),
                 "rag_context_construction_time_ms": prep["timing"].get("rag_context_construction_time_ms", 0.0),
+                # Standardized provider-agnostic telemetry
+                "llm_provider": stream_timing.get("provider", "unknown"),
+                "llm_request_start_time_ms": stream_timing.get("llm_request_start_ms", stream_timing.get("ollama_request_start_ms", 0.0)),
+                "total_llm_generation_time_ms": stream_timing.get("total_llm_generation_time_ms", stream_timing.get("total_ollama_generation_time_ms", 0.0)),
+                "ttft_applicable": True,
+                "finish_reason": stream_timing.get("finish_reason", "stop"),
+                "truncated": stream_timing.get("truncated", False),
+                # Legacy telemetry fields (preserved for backwards compatibility)
                 "ollama_request_start_time_ms": stream_timing.get("ollama_request_start_ms", 0.0),
                 "time_to_first_token_ms": round(prep["timing"].get("total_retrieval_time_ms", 0.0) + prep["timing"].get("rag_context_construction_time_ms", 0.0) + stream_timing.get("time_to_first_token_ms", 0.0), 2),
                 "total_ollama_generation_time_ms": stream_timing.get("total_ollama_generation_time_ms", 0.0),
