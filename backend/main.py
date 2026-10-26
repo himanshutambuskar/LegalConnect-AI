@@ -316,7 +316,9 @@ def ask_question(request: QuestionRequest):
     except PermissionError as e:
         raise HTTPException(status_code=401, detail=str(e))
     except RuntimeError as e:
-        raise HTTPException(status_code=429, detail=str(e))
+        if "rate limit" in str(e).lower():
+            raise HTTPException(status_code=429, detail=str(e))
+        raise HTTPException(status_code=503, detail=str(e))
     except ValueError as e:
         raise HTTPException(status_code=500, detail=str(e))
     except HTTPException:
@@ -396,9 +398,13 @@ def ask_question_stream(request: QuestionRequest):
                 }) + "\n"
                 return
             except (PermissionError, RuntimeError, ValueError) as e:
+                clean_err = str(e)
+                api_key = os.environ.get("LLM_API_KEY", "")
+                if api_key and api_key in clean_err:
+                    clean_err = clean_err.replace(api_key, "[REDACTED]")
                 yield json.dumps({
                     "type": "error",
-                    "error": str(e)
+                    "error": clean_err
                 }) + "\n"
                 return
             except Exception:
@@ -411,6 +417,18 @@ def ask_question_stream(request: QuestionRequest):
             t_req_end = time.perf_counter()
             total_request_time_ms = round((t_req_end - t_req_start) * 1000, 2)
             init_timing = getattr(embedding_model, "_init_timing", {})
+
+            is_ttft_applicable = stream_timing.get("ttft_applicable", True)
+            calculated_ttft = (
+                round(
+                    prep["timing"].get("total_retrieval_time_ms", 0.0)
+                    + prep["timing"].get("rag_context_construction_time_ms", 0.0)
+                    + stream_timing.get("time_to_first_token_ms", 0.0),
+                    2,
+                )
+                if is_ttft_applicable
+                else 0.0
+            )
 
             full_timing = {
                 "request_handling_time_ms": total_request_time_ms,
@@ -427,12 +445,12 @@ def ask_question_stream(request: QuestionRequest):
                 "llm_provider": stream_timing.get("provider", "unknown"),
                 "llm_request_start_time_ms": stream_timing.get("llm_request_start_ms", stream_timing.get("ollama_request_start_ms", 0.0)),
                 "total_llm_generation_time_ms": stream_timing.get("total_llm_generation_time_ms", stream_timing.get("total_ollama_generation_time_ms", 0.0)),
-                "ttft_applicable": True,
+                "ttft_applicable": is_ttft_applicable,
                 "finish_reason": stream_timing.get("finish_reason", "stop"),
                 "truncated": stream_timing.get("truncated", False),
                 # Legacy telemetry fields (preserved for backwards compatibility)
                 "ollama_request_start_time_ms": stream_timing.get("ollama_request_start_ms", 0.0),
-                "time_to_first_token_ms": round(prep["timing"].get("total_retrieval_time_ms", 0.0) + prep["timing"].get("rag_context_construction_time_ms", 0.0) + stream_timing.get("time_to_first_token_ms", 0.0), 2),
+                "time_to_first_token_ms": calculated_ttft,
                 "total_ollama_generation_time_ms": stream_timing.get("total_ollama_generation_time_ms", 0.0),
                 "total_request_time_ms": total_request_time_ms,
             }
@@ -462,7 +480,9 @@ def ask_question_stream(request: QuestionRequest):
     except PermissionError as e:
         raise HTTPException(status_code=401, detail=str(e))
     except RuntimeError as e:
-        raise HTTPException(status_code=429, detail=str(e))
+        if "rate limit" in str(e).lower():
+            raise HTTPException(status_code=429, detail=str(e))
+        raise HTTPException(status_code=503, detail=str(e))
     except ValueError as e:
         raise HTTPException(status_code=500, detail=str(e))
     except HTTPException:

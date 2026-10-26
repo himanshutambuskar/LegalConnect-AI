@@ -485,13 +485,19 @@ def generate_answer(prompt, return_timing=False, allowed_sections=None):
             raise requests.exceptions.ConnectionError("The AI service is temporarily unavailable or timed out upstream. Please try again shortly.")
         response.raise_for_status()
         data = response.json()
+        if isinstance(data, dict) and data.get("error"):
+            raise RuntimeError("The AI service encountered an upstream issue while generating the response. Please try again.")
         choices = data.get("choices", [])
         if not choices:
             raw_response = ""
             finish_reason = "empty"
         else:
+            if choices[0].get("error"):
+                raise RuntimeError("The AI service encountered an upstream issue while generating the response. Please try again.")
             raw_response = choices[0].get("message", {}).get("content", "") or ""
             finish_reason = choices[0].get("finish_reason") or "stop"
+            if finish_reason == "error":
+                raise RuntimeError("The AI service encountered an upstream issue while generating the response. Please try again.")
 
     if "</think>" in raw_response:
         cleaned = raw_response.split("</think>")[-1].strip()
@@ -549,43 +555,87 @@ def generate_answer_stream(prompt, return_timing_callback=None, allowed_sections
     process_token, flush_stream = create_citation_stream_filter(allowed_sections)
     stream_finish_reason = None
     has_yielded_token = False
+    first_token_time_ms = None
+    request_start_ms = 0.0
+    is_truncated = False
+    timing_reported = False
 
-    if config["provider"] == "ollama":
-        prefill = "<think>\nDirect response.\n</think>\n\n"
-        messages = [
-            {"role": "user", "content": prompt},
-            {"role": "assistant", "content": prefill}
-        ]
-        url = f"{config['base_url']}/api/chat"
-        response = requests.post(
-            url,
-            json={
-                "model": config["model"],
-                "messages": messages,
-                "stream": True,
-                "options": {
-                    "temperature": 0.2,
-                    "num_predict": max_tokens,
-                    "keep_alive": "30m"
-                }
-            },
-            stream=True,
-            timeout=300
-        )
-        t_post_end = time.perf_counter()
-        request_start_ms = round((t_post_end - t_post_start) * 1000, 2)
-        response.raise_for_status()
+    def _invoke_timing_callback():
+        nonlocal timing_reported, stream_finish_reason
+        if timing_reported or not return_timing_callback:
+            return
+        timing_reported = True
+        t_gen_end = time.perf_counter()
+        total_generation_time_ms = round((t_gen_end - t_gen_start) * 1000, 2)
+        if has_yielded_token and first_token_time_ms is not None:
+            ttft_applicable = True
+            reported_ttft = first_token_time_ms
+        else:
+            ttft_applicable = False
+            reported_ttft = 0.0
 
-        first_token_time_ms = None
-        in_think_block = False
+        return_timing_callback({
+            # Standardized provider-agnostic keys
+            "llm_request_start_ms": request_start_ms,
+            "total_llm_generation_time_ms": total_generation_time_ms,
+            "time_to_first_token_ms": reported_ttft,
+            "ttft_applicable": ttft_applicable,
+            "finish_reason": stream_finish_reason or ("error" if not has_yielded_token else "stop"),
+            "truncated": is_truncated,
+            "provider": config["provider"],
+            # Legacy backwards compatibility keys
+            "ollama_request_start_ms": request_start_ms,
+            "total_ollama_generation_time_ms": total_generation_time_ms,
+        })
 
-        for line in response.iter_lines():
-            if not line:
-                continue
-            try:
-                data = json.loads(line.decode("utf-8"))
+    try:
+        if config["provider"] == "ollama":
+            prefill = "<think>\nDirect response.\n</think>\n\n"
+            messages = [
+                {"role": "user", "content": prompt},
+                {"role": "assistant", "content": prefill}
+            ]
+            url = f"{config['base_url']}/api/chat"
+            response = requests.post(
+                url,
+                json={
+                    "model": config["model"],
+                    "messages": messages,
+                    "stream": True,
+                    "options": {
+                        "temperature": 0.2,
+                        "num_predict": max_tokens,
+                        "keep_alive": "30m"
+                    }
+                },
+                stream=True,
+                timeout=300
+            )
+            t_post_end = time.perf_counter()
+            request_start_ms = round((t_post_end - t_post_start) * 1000, 2)
+            response.raise_for_status()
+
+            in_think_block = False
+
+            for line in response.iter_lines():
+                if not line:
+                    continue
+                try:
+                    data = json.loads(line.decode("utf-8"))
+                except Exception:
+                    continue
+
+                if not isinstance(data, dict):
+                    continue
+
+                if data.get("error"):
+                    raise RuntimeError("The AI service encountered an upstream issue while generating the response. Please try again.")
+
                 if data.get("done"):
                     stream_finish_reason = data.get("done_reason") or "stop"
+                    if stream_finish_reason == "error":
+                        raise RuntimeError("The AI service encountered an upstream issue while generating the response. Please try again.")
+
                 chunk = data.get("message", {}).get("content", "")
                 if not chunk:
                     continue
@@ -609,64 +659,84 @@ def generate_answer_stream(prompt, return_timing_callback=None, allowed_sections
                     if filtered:
                         has_yielded_token = True
                         yield filtered
-            except Exception:
-                continue
 
-    else:
-        # Hosted OpenAI-compatible streaming
-        url = f"{config['base_url']}/chat/completions"
-        headers = {
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {config['api_key']}",
-        }
-        payload = {
-            "model": config["model"],
-            "messages": [
-                {"role": "user", "content": prompt}
-            ],
-            "temperature": 0.2,
-            "max_tokens": max_tokens,
-            "stream": True,
-        }
-        response = requests.post(url, json=payload, headers=headers, stream=True, timeout=120)
-        t_post_end = time.perf_counter()
-        request_start_ms = round((t_post_end - t_post_start) * 1000, 2)
-        if response.status_code == 401:
-            raise PermissionError("Authentication failed with the hosted AI service. Please verify LLM_API_KEY.")
-        if response.status_code == 429:
-            raise RuntimeError("Rate limit exceeded for the hosted AI service. Please try again shortly.")
-        if response.status_code in (502, 503, 504):
-            raise requests.exceptions.ConnectionError("The AI service is temporarily unavailable or timed out upstream. Please try again shortly.")
-        response.raise_for_status()
+        else:
+            # Hosted OpenAI-compatible streaming
+            url = f"{config['base_url']}/chat/completions"
+            headers = {
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {config['api_key']}",
+            }
+            payload = {
+                "model": config["model"],
+                "messages": [
+                    {"role": "user", "content": prompt}
+                ],
+                "temperature": 0.2,
+                "max_tokens": max_tokens,
+                "stream": True,
+            }
+            response = requests.post(url, json=payload, headers=headers, stream=True, timeout=120)
+            t_post_end = time.perf_counter()
+            request_start_ms = round((t_post_end - t_post_start) * 1000, 2)
+            if response.status_code == 401:
+                raise PermissionError("Authentication failed with the hosted AI service. Please verify LLM_API_KEY.")
+            if response.status_code == 429:
+                raise RuntimeError("Rate limit exceeded for the hosted AI service. Please try again shortly.")
+            if response.status_code in (502, 503, 504):
+                raise requests.exceptions.ConnectionError("The AI service is temporarily unavailable or timed out upstream. Please try again shortly.")
+            response.raise_for_status()
 
-        first_token_time_ms = None
-        in_think_block = False
+            in_think_block = False
 
-        for line in response.iter_lines():
-            if not line:
-                continue
-            line_str = line.decode("utf-8").strip()
-            if not line_str or line_str.startswith(":"):
-                continue
-            if line_str.startswith("data: "):
-                data_str = line_str[6:].strip()
-            elif line_str.startswith("data:"):
-                data_str = line_str[5:].strip()
-            else:
-                continue
+            for line in response.iter_lines():
+                if not line:
+                    continue
+                line_str = line.decode("utf-8").strip()
+                if not line_str or line_str.startswith(":"):
+                    continue
+                if line_str.startswith("data: "):
+                    data_str = line_str[6:].strip()
+                elif line_str.startswith("data:"):
+                    data_str = line_str[5:].strip()
+                else:
+                    continue
 
-            if data_str == "[DONE]":
-                break
+                if data_str == "[DONE]":
+                    break
 
-            try:
-                data = json.loads(data_str)
+                try:
+                    data = json.loads(data_str)
+                except Exception:
+                    continue
+
+                if not isinstance(data, dict):
+                    continue
+
+                # 1. Top-level error payload detection
+                if data.get("error"):
+                    raise RuntimeError("The AI service encountered an upstream issue while generating the response. Please try again.")
+
                 choices = data.get("choices", [])
                 if not choices:
                     continue
-                chunk_finish_reason = choices[0].get("finish_reason")
+
+                choice_obj = choices[0]
+                if not isinstance(choice_obj, dict):
+                    continue
+
+                # 2. Choice-level error payload detection
+                if choice_obj.get("error"):
+                    raise RuntimeError("The AI service encountered an upstream issue while generating the response. Please try again.")
+
+                # 3. Check finish_reason
+                chunk_finish_reason = choice_obj.get("finish_reason")
                 if chunk_finish_reason:
                     stream_finish_reason = chunk_finish_reason
-                chunk = choices[0].get("delta", {}).get("content", "")
+                    if chunk_finish_reason == "error":
+                        raise RuntimeError("The AI service encountered an upstream issue while generating the response. Please try again.")
+
+                chunk = choice_obj.get("delta", {}).get("content", "")
                 if not chunk:
                     continue
 
@@ -689,44 +759,26 @@ def generate_answer_stream(prompt, return_timing_callback=None, allowed_sections
                     if filtered:
                         has_yielded_token = True
                         yield filtered
-            except Exception:
-                continue
 
-    remaining = flush_stream()
-    if remaining:
-        has_yielded_token = True
-        yield remaining
+        if stream_finish_reason == "error":
+            raise RuntimeError("The AI service encountered an upstream issue while generating the response. Please try again.")
 
-    is_truncated = (stream_finish_reason == "length")
-    if is_truncated:
-        truncation_note = (
-            "\n\n*[Note: Response reached the maximum output token limit and may be incomplete. "
-            "Please ask a follow-up question for additional details.]*"
-        )
-        yield truncation_note
-    elif not has_yielded_token:
-        empty_note = "I couldn't generate a response for this legal query. Please try rephrasing your question."
-        yield empty_note
+        remaining = flush_stream()
+        if remaining:
+            has_yielded_token = True
+            yield remaining
 
-    t_gen_end = time.perf_counter()
-    total_generation_time_ms = round((t_gen_end - t_gen_start) * 1000, 2)
-    if first_token_time_ms is None:
-        first_token_time_ms = total_generation_time_ms
-
-    if return_timing_callback:
-        return_timing_callback({
-            # Standardized provider-agnostic keys
-            "llm_request_start_ms": request_start_ms,
-            "total_llm_generation_time_ms": total_generation_time_ms,
-            "time_to_first_token_ms": first_token_time_ms,
-            "ttft_applicable": True,
-            "finish_reason": stream_finish_reason or "stop",
-            "truncated": is_truncated,
-            "provider": config["provider"],
-            # Legacy backwards compatibility keys
-            "ollama_request_start_ms": request_start_ms,
-            "total_ollama_generation_time_ms": total_generation_time_ms,
-        })
+        is_truncated = (stream_finish_reason == "length")
+        if is_truncated:
+            truncation_note = (
+                "\n\n*[Note: Response reached the maximum output token limit and may be incomplete. "
+                "Please ask a follow-up question for additional details.]*"
+            )
+            yield truncation_note
+        elif not has_yielded_token:
+            raise RuntimeError("I couldn't generate a response for this legal query. Please try rephrasing your question.")
+    finally:
+        _invoke_timing_callback()
 
 
 # =========================
